@@ -29,7 +29,7 @@
       image by separating them with a bare "/" (state inside the image and
       the DOS heap persist, as in the game).
 
-VSYNC model: the VSYNC interrupt (INT 0Ah) is delivered once every 400
+VSYNC model: the VSYNC interrupt (INT 0Ah) is delivered once every 20000
 instructions while interrupts are enabled, IRQ2 is unmasked (port 02h bit 2
 clear) and the interrupt was requested by a write to port 64h; the VSYNC bit
 of port A0h (bit 5) toggles every 300 reads.  The log counts frames, it does
@@ -154,6 +154,12 @@ class Machine:
         self.heap = {}                     # seg -> paragraphs
         self.heap_next = HEAP_LO
         self.blocked = False
+        # stand-ins for the BIOS handlers a plug-in may chain to:
+        # INT 0Ah (VSYNC): EOI, iret;  INT 18h: iret
+        self.wr(0xF000, 0x0100, bytes.fromhex('50b020e60058cf'))
+        self.wr(0xF000, 0x0110, b'\xcf')
+        self.wr(0, 0x0A * 4, struct.pack('<HH', 0x0100, 0xF000))
+        self.wr(0, 0x18 * 4, struct.pack('<HH', 0x0110, 0xF000))
         self.uc.hook_add(unicorn.UC_HOOK_INTR, self.on_int)
         self.uc.hook_add(unicorn.UC_HOOK_INSN, self.on_in, None, 1, 0,
                          X.UC_X86_INS_IN)
@@ -413,10 +419,10 @@ class Machine:
             cs, ip = self.r('CS'), self.r('IP')
             if (cs, ip) == (ISEG, RET_OFF):
                 break
-            self.uc.emu_start(cs * 16 + ip, ISEG * 16 + RET_OFF, count=400)
+            self.uc.emu_start(cs * 16 + ip, ISEG * 16 + RET_OFF, count=20000)
             self.deliver_vsync()
             steps += 1
-            if steps > 2000000:
+            if steps > 100000:
                 self.say('gave up (too many instructions)')
                 break
         cx = self.r('CX')
