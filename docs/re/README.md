@@ -21,7 +21,8 @@ Windows release of 1996 (`EVE.PCK`), the FM Towns CD of 1993, and the English tr
 | [script-catalog.md](script-catalog.md) | every script, the route graphs of the three stories, maps, saves and unlocks, CG and music modes, the complete flag and variable tables, script bugs |
 | [disks.md](disks.md) | which file is on which floppy, how scripts select disks, the rule that resolves every picture reference |
 | [other-versions.md](other-versions.md) | the Windows release (EVE engine, script format, differences) and the FM Towns release (AdvTowns, archives, script dialect), the song ↔ CD track table |
-| usd-driver.md, usd-sequencer.md | the music driver "USDdrv" and the `.USO` song format (in progress) |
+| [usd-driver.md](usd-driver.md) | the music driver "USDdrv" inside AdvBIOS: layout, chip detection, the two timers, the INT F4h functions, fades, effect banks; §11 lists corrections to advbios.md |
+| [usd-sequencer.md](usd-sequencer.md) | the `.USO` song format and sequencer: file layout, per-tick algorithm, all commands, note tables, FM and SSG voices, LFOs, envelopes; per-song table |
 | [listing/](listing/) | name tables for `NV.OVL`, `NV.OV1` and the plug-ins. Disassembly listings are the game's code and are generated locally (`resources/derived/listing/`), never committed |
 
 ## Tools
@@ -39,7 +40,7 @@ usage in its header. Run them with `python3 -I`; the emulation harnesses need `c
 | `source/tools/gpc.py`, `re-tools/pi.py`, `re-tools/gpc_verify.py` | picture decoders | bit-exact with the original decoder under emulation on all 103 distinct GPC files |
 | `re-tools/dis16.py`, `advbios_map.py`, `tcmtool.py` | 16-bit disassembler with name files; label transfer from Valley Bell's listing; plug-in listings and emulation harness | — |
 | `re-tools/evedis.py`, `evecmp.py`, `cdimg.py` | Windows scripts, release comparison, Towns CD image and archives | 118 Windows scripts fully covered |
-| `re-tools/usoinfo.py`, `usdemu.py`, `usdmodel.py` | song dump, original driver under emulation, clean-room sequencer model (in progress) | — |
+| `re-tools/usoinfo.py`, `usdemu.py`, `usdmodel.py` | song dump, original driver under emulation (VGM recordings), clean-room sequencer model | model = original on every register write: 28 files in play, fade, stop and chained scenarios plus synthetic songs (5.7 M writes) |
 
 ## Regenerating
 

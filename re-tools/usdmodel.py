@@ -5,19 +5,26 @@ docs/re/usd-sequencer.md - not from the disassembly.  It produces the same strea
 register writes, clock for clock, as the original driver run by usdemu.py.
 
     usdmodel.py SONG.USO [-o out.vgm] [--log out.tsv] [--loops N] [--seconds S]
-    usdmodel.py --check [FILE ...] [--loops N] [--cap S] [-v]
-        compare the model with the emulated original for every file (default: all 28):
-        scenario "play"  = sound "file" / sound 1, intro + N loop passes (default 3), capped
-                           at --cap seconds of song time (default 420)
-        scenario "fade"  = fade-in start, fade-out, stop, restart with a volume offset,
-                           a raw fade, a second song started over the first
-        scenario "chain" = each file started after the previous one without a fresh driver
-                           (state a track inherits from the last song on its channel)
+    usdmodel.py --check [FILE ...] [--loops N] [--cap S] [--synth N] [--seed N] [-v]
+        compare the model with the emulated original (default: all 28 files):
+        scenario "play"      = sound "file" / sound 1, intro + N loop passes (default 3),
+                               capped at --cap seconds of song time (default 420)
+        scenario "fade"      = fade-in start, fade-out, stop, restarts with volume offsets,
+                               raw fades, a restart over the playing song
+        scenario "chain"     = every file started after the previous one on one driver
+                               instance (state a track inherits from the last song)
+        scenario "phase"     = four files at different phases of the two timers
+        scenario "synthetic" = --synth generated songs (default 400; our own data) that use
+                               what NOVA's files do not: loop-exit, all gate modes and LFO
+                               shapes, odd values, priorities, timer-B clocked tracks,
+                               effect banks, stop-by-priority, fades with a threshold
+        --synth-only runs only the last one.  Exit status 1 if anything differs.
     (--check needs unicorn: $EMU_PYTHON)
 
 Model API (what an engine needs):
     m = Model()                    state right after AdvBIOS start-up
     m.load(bytes); m.play(); m.fade_in(); m.fade_out(); m.stop(); m.volume(n); m.fade(p, s, f)
+    m.load_bank(bytes); m.play_se(i); m.stop_owner(n); m.set_enable(mask)     (unused by NOVA)
     m.run(seconds=...) / m.run(aticks=...)       advance the two OPN timers
     m.writes -> [(clock, reg, val)]              clock in 1/3993600 s
 The sequencer itself (Sequencer) does not know about time: Sequencer.interrupt(flags)
@@ -464,7 +471,7 @@ class SsgChannel(Channel):
     def __init__(self, seq, number):
         super().__init__(seq, number)
         self.voice = bytes(SSG_VOICE_SIZE)
-        self.mixer = 0x09 << number     # mixer bits this channel opens (tone | noise)
+        self.mixer = 0                  # mixer bits the voice opens; none until a voice is loaded
         self.vol_lfo = Lfo('ssgvol')
         self.noise_lfo = Lfo('noise')
         self.noise_lfo_on = False
@@ -555,9 +562,7 @@ class SsgChannel(Channel):
         self.out(0x08 + self.number, min(max(level >> 4, 0), 15))
 
     def write_noise(self, off):
-        n = (off >> 4) & 0xFFFF
-        lo = (n & 0xFF) + self.voice[1]         # 8-bit add, carry into the high byte
-        n = s16((((n >> 8) + (lo >> 8)) << 8) | (lo & 0xFF))
+        n = s16((off >> 4) + self.voice[1])
         self.out(0x06, min(max(n, 0), 0x1F))
 
     def effects(self):
@@ -703,6 +708,7 @@ class Model:
         self.next_b = clk + phase[1]
         self.seq = Sequencer(self._write)
         self.song = None
+        self.bank = None
         self.enable = 3
         self.atick = 0
         self.a_clk = []
@@ -739,9 +745,26 @@ class Model:
         self.seq.stop(0)
         self._full_volume()
 
+    def stop_owner(self, owner):            # AH=84h (internal): DX = 0 all, else priority limit
+        self.seq.stop(owner)
+        self._full_volume()
+
     def load(self, data):                   # AH=00h
         self.stop()
         self.song = bytes(data)
+
+    def load_bank(self, data):              # AH=10h
+        self.stop()
+        self.bank = bytes(data)
+
+    def play_se(self, index):               # AH=11h
+        if not self.enable & 2 or self.bank is None or index >= u16(self.bank, 0):
+            return False
+        b = bind(self.bank[2 + u16(self.bank, 2 + 2 * index):])
+        if b is None:
+            return False
+        self.seq.start(*b)
+        return True
 
     def play(self):                         # AH=01h
         if self.enable & 1:
@@ -849,10 +872,13 @@ def render(path, out=None, log=None, loops=2, seconds=60.0):
 class Pair:
     """the emulated original and the model, driven with the same calls"""
 
-    def __init__(self):
+    def __init__(self, phase=None):
         import usdemu
         self.e = usdemu.USDEmu()
-        self.m = Model(self.e.clk, self.e.phase(), self.e.snd_w(0x0574))
+        if phase:
+            self.e.set_phase(*phase)        # clocks to the next timer-A / timer-B overflow
+        self.m_phase = self.e.phase()
+        self.m = Model(self.e.clk, self.m_phase, self.e.snd_w(0x0574))
         self.skip = len(self.e.writes)
 
     def load(self, path):
@@ -888,7 +914,7 @@ class Pair:
         return n, None
 
 
-def check(files, loops=3, cap=420.0, verbose=False):
+def check(files, loops=3, cap=420.0, verbose=False, synth=400):
     sys.path.insert(0, HERE)
     import usoinfo
     bad = 0
@@ -950,7 +976,7 @@ def check(files, loops=3, cap=420.0, verbose=False):
             name, (p.e.clk - p.e.writes[p.skip][0]) / CLOCK, n, 'identical' if err is None else 'DIFFERENT'))
         if err:
             print(err)
-    print('scenario chain: all files one after another on one driver instance (4 s each, no stop between odd pairs)')
+    print('scenario chain: all files, forwards then backwards, on one driver instance (1.7 - 5.1 s each)')
     p = Pair()
     for i, path in enumerate(files + files[::-1]):
         p.load(path)
@@ -966,8 +992,212 @@ def check(files, loops=3, cap=420.0, verbose=False):
                                                n, 'identical' if err is None else 'DIFFERENT'))
     if err:
         print(err)
+    print('scenario phase: 4 files x 4 timer phases at the start call (one with both timers coinciding), 25 s')
+    import random
+    rng = random.Random(11)
+    both = 0
+    pbad = 0
+    for name in ('NV08', 'NV14', 'NVSE01', 'NV10'):
+        path = [f for f in all_files() if os.path.basename(f).upper() == name + '.USO']
+        if not path:
+            continue
+        for k in range(4):
+            p = Pair(phase=(38016, 38016) if k == 0 else (rng.randrange(1, 53064), rng.randrange(1, 38016)))
+            p.load(path[0])
+            p.call('play')
+            p.run(seconds=25.0)
+            n, err = p.compare()
+            total += n
+            pbad += err is not None
+            both += sum(1 for _t, kind in p.e.irq_log if kind == 'AB')
+            if err:
+                print('  %s phase %s DIFFERENT\n%s' % (name, p.m_phase, err))
+    bad += pbad
+    print('  16 runs, %d interrupts served both timers  %s' % (both, 'identical' if not pbad else 'see above'))
+    print('scenario synthetic: %d generated songs (all commands, all modulator shapes, priorities, timer-B clocked tracks)' % synth)
+    n, b = check_synthetic(synth, verbose=verbose)
+    total += n
+    bad += b
+    print('  %d writes  %s' % (n, 'identical' if not b else '%d groups DIFFERENT' % b))
     print('%d register writes compared, %d scenario runs differ' % (total, bad))
     return bad
+
+
+# ---- synthetic test songs (our own data; exercise what NOVA's files do not) --------------
+def synth_song(rng, se=False):
+    """a random but well-formed .USO file using every command, every modulator shape, odd
+    parameter values, priorities and all three clocking modes"""
+    def lfo(small=True):
+        typ = rng.choice([0, 0, 0x80, 0x82, 0x84, 0x86, 0x80, 0x82, 0x84, 0x86, 1, 2, 4, 6, 0x7F, 0x41])
+        step = rng.randint(-40, 40) if small or rng.random() < 0.8 else rng.randint(-3000, 3000)
+        return bytes([typ, rng.choice([0, 0, 1, 2, 5, 12]), rng.choice([1, 1, 1, 2, 3, 5, 0]),
+                      rng.choice([1, 2, 3, 4, 7, 0, 9])]) + struct.pack('<h', step)
+
+    nfm, nssg = rng.randint(1, 4), rng.randint(1, 4)
+    fm = b''
+    for _ in range(nfm):
+        regs = bytes(rng.randrange(256) for _ in range(24))
+        tl = bytes(rng.randrange(128) if rng.random() < 0.9 else rng.randrange(256) for _ in range(4))
+        fm += regs[:4] + tl + regs[8:] + bytes([rng.randrange(64), rng.choice([15, 8, 12, 14, 0, 5, rng.randrange(16)]),
+                                                rng.choice([0xF0, 0xF0, 0xF0, 0x80, 0x5A, 0x0F])])
+        fm += lfo(False) + lfo()
+    ssg = b''
+    for _ in range(nssg):
+        ssg += bytes([rng.choice([1, 1, 1, 8, 9, 9, 0]), rng.randrange(32),
+                      rng.randrange(256), rng.randrange(256),
+                      rng.choice([255, 255, rng.randrange(256)]), rng.randrange(40),
+                      rng.randrange(24), rng.randrange(40)])
+        ssg += bytes(rng.randrange(256) for _ in range(4))
+        ssg += lfo(False) + lfo() + lfo()
+
+    def note():
+        n = rng.randrange(16) if rng.random() < 0.85 else 0
+        r = rng.random()
+        if r < 0.55:
+            return bytes([(rng.choice([6, 7, 8, 9, 10, 10, 10, 5, 4]) << 4) | n])
+        if r < 0.97:
+            return bytes([0xB0 | n, rng.randint(1, 40)])
+        return bytes([0xB0 | n, 0x80, rng.randint(1, 60)])
+
+    def simple(is_fm):
+        r = rng.random()
+        if r < 0.18:
+            return bytes([0xFE, rng.choice([rng.randint(10, 80), rng.randint(0, 110), rng.randrange(256)])])
+        if r < 0.36:
+            return bytes([0xFD, rng.choice([rng.randint(0xD0, 0xFF), rng.randint(0, 20), rng.randrange(256)])])
+        if r < 0.44:
+            return bytes([0xFC, rng.choice([rng.randint(0, 6), rng.randint(0xF8, 0xFF), rng.randrange(256)])])
+        if r < 0.49:
+            return bytes([0xFB, rng.randint(0x90, 0xF8), rng.randrange(4)])
+        if r < 0.59:
+            return bytes([0xF8, rng.choice([0, 2, 4, 6, 8, 10, 12, 14, 14, rng.randrange(256)])])
+        if r < 0.66:
+            return bytes([0xF7])
+        if r < 0.74:
+            return bytes([0xF6, rng.choice([0, 0, 1, 3, 8, 40, 200])])
+        if r < 0.90:
+            return bytes([0xE1, rng.randrange(nfm)]) if is_fm else bytes([0xE0, rng.randrange(nssg)])
+        return bytes([rng.choice([0xC0, 0xDF, 0xD3, 0xF9, 0xFA, 0xF2, 0xE2, 0xEA])])
+
+    def block(is_fm, depth, counters):
+        out = b''
+        for _ in range(rng.randint(2, 7)):
+            r = rng.random()
+            if r < 0.12 and depth < 3 and counters:
+                c = counters[0]
+                body = block(is_fm, depth + 1, counters[1:]) + note()
+                if rng.random() < 0.4 and len(counters) > 1:
+                    # loop_exit in the body (jumping behind the repeat), with its own counter
+                    # or - nonsensically, but legal - sharing the repeat's
+                    tail = note() + simple(is_fm)
+                    n2 = rng.choice([counters[-1], counters[-1], c])
+                    body = body + bytes([0xF4, n2, rng.randint(0, 3)]) + struct.pack('<h', len(tail) + 5) + tail
+                out += body + bytes([0xF3, c, rng.randint(1, 3)]) + struct.pack('<h', -(len(body) + 5))
+            elif r < 0.55:
+                out += simple(is_fm)
+            else:
+                out += note()
+        return out
+
+    ntr = rng.randint(1, 3) if se else rng.randint(1, 6)
+    chans = rng.sample(range(6), ntr)
+    tracks = []
+    for ch in chans:
+        is_fm = ch < 3
+        head = bytes([0xFE, rng.randint(20, 70)]) if rng.random() < 0.8 else b''
+        if rng.random() < 0.7:
+            head += bytes([0xFB, rng.randint(0xA0, 0xF8), rng.randrange(4)])
+        if rng.random() < 0.9:
+            head += bytes([0xE1, rng.randrange(nfm)]) if is_fm else bytes([0xE0, rng.randrange(nssg)])
+        intro = block(is_fm, 0, [0, 1, 2, 3])
+        loop = block(is_fm, 0, [0, 1, 2, 3]) + note()
+        if rng.random() < 0.75:
+            code = head + intro + loop + bytes([0xF5]) + struct.pack('<h', -(len(loop) + 3)) + b'\xFF'
+        else:
+            code = head + intro + loop + b'\xFF'
+        tracks.append(code)
+    hdr = struct.pack('<HHH', rng.choice([2, 2, 2, 1, 3] if se else [1, 1, 1, 1, 2, 3, 0x0101]), ntr, 2)
+    off = 0
+    prio_mode = 1.0 if se else rng.random()
+    for ch, code in zip(chans, tracks):
+        prio = 0 if prio_mode < 0.6 else rng.randrange(4)
+        hdr += struct.pack('<BBH', ch, prio, off) + bytes(rng.randrange(256) for _ in range(6))
+        off += len(code)
+    data = b''.join(tracks)
+    return (hdr + struct.pack('<HH', 0, len(fm)) + fm + struct.pack('<HH', 3, len(ssg)) + ssg
+            + struct.pack('<H', len(data)) + data)
+
+
+def check_synthetic(count, seed=1993, verbose=False):
+    import random
+    rng = random.Random(seed)
+    bad = 0
+    total = 0
+    p = None
+    nbank = 0
+    for i in range(count):
+        if p is None or i % 8 == 0:
+            nbank = 0
+            if p is not None:
+                n, err = p.compare()
+                total += n
+                if err:
+                    bad += 1
+                    print('  synthetic group ending at song %d: DIFFERENT\n%s' % (i, err))
+            p = Pair()
+        data = synth_song(rng)
+        name = 'SYN%04d.USO' % i
+        if rng.random() < 0.8:
+            p.e.int_f4(0x02)
+            p.m.stop()
+        p.e.files[name] = data
+        p.e.int_f4(0x00, bx=p.e._name(name))
+        p.m.load(data)
+        r = rng.random()
+        if r < 0.5:
+            p.call('play')
+        elif r < 0.75:
+            p.call('fade_in')
+        else:
+            p.call('volume', rng.randint(-70, 5))
+        if rng.random() < 0.3:
+            # an effect bank: 1-3 songs behind a count word and an offset table (offsets are
+            # relative to the table); loading it stops the music, so start that again
+            entries = [synth_song(rng, se=True) for _ in range(rng.randint(1, 3))]
+            bank = struct.pack('<H', len(entries))
+            off = 2 * len(entries)
+            for en in entries:
+                bank += struct.pack('<H', off)
+                off += len(en)
+            bank += b''.join(entries)
+            p.e.load_bank(bank, 'BNK%04d.USO' % i)
+            p.m.load_bank(bank)
+            p.call('play')
+            nbank = len(entries)
+        for _ in range(rng.randint(1, 4)):
+            p.run(seconds=rng.uniform(0.2, 1.6))
+            if nbank and rng.random() < 0.6:
+                p.call('play_se', rng.randint(0, nbank))
+                p.run(seconds=rng.uniform(0.1, 0.8))
+            r = rng.random()
+            if r < 0.15:
+                p.call('fade_out')
+            elif r < 0.30:
+                p.call('fade', rng.randint(0, 4), rng.randint(-9, 9), rng.randint(0, 3))
+            elif r < 0.40:
+                p.call('stop_owner', rng.randint(1, 3))
+            elif r < 0.50:
+                p.call('play')
+            elif r < 0.55:
+                p.call('fade_in')
+        if verbose:
+            print('  %s %d bytes, t=%.1f s, active %s' % (name, len(data), p.e.clk / CLOCK, p.e.active()))
+    n, err = p.compare()
+    total += n
+    if err:
+        bad += 1
+        print('  synthetic group (last): DIFFERENT\n%s' % err)
+    return total, bad
 
 
 def main():
@@ -979,10 +1209,17 @@ def main():
     ap.add_argument('--seconds', type=float, default=60.0)
     ap.add_argument('--check', action='store_true')
     ap.add_argument('--cap', type=float, default=420.0)
+    ap.add_argument('--synth', type=int, default=400, help='number of synthetic songs (--check)')
+    ap.add_argument('--synth-only', action='store_true')
+    ap.add_argument('--seed', type=int, default=1993)
     ap.add_argument('-v', '--verbose', action='store_true')
     a = ap.parse_args()
     if a.check:
-        return 1 if check(a.files or all_files(), a.loops or 3, a.cap, a.verbose) else 0
+        if a.synth_only:
+            n, b = check_synthetic(a.synth, a.seed, a.verbose)
+            print('%d writes compared, %d groups differ' % (n, b))
+            return 1 if b else 0
+        return 1 if check(a.files or all_files(), a.loops or 3, a.cap, a.verbose, a.synth) else 0
     if not a.files:
         ap.error('need a file or --check')
     for path in a.files:

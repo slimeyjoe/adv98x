@@ -76,8 +76,11 @@ try:
                                    UC_X86_REG_CX, UC_X86_REG_DX, UC_X86_REG_SI, UC_X86_REG_DI,
                                    UC_X86_REG_SP, UC_X86_REG_CS, UC_X86_REG_DS, UC_X86_REG_ES,
                                    UC_X86_REG_SS, UC_X86_REG_IP, UC_X86_REG_FLAGS, UC_X86_REG_BP)
-except ImportError:
-    sys.exit('usdemu.py needs the unicorn package (use $EMU_PYTHON)')
+    _ALLREGS = (UC_X86_REG_AX, UC_X86_REG_BX, UC_X86_REG_CX, UC_X86_REG_DX, UC_X86_REG_SI,
+                UC_X86_REG_DI, UC_X86_REG_BP, UC_X86_REG_SP, UC_X86_REG_DS, UC_X86_REG_ES,
+                UC_X86_REG_SS, UC_X86_REG_CS, UC_X86_REG_IP, UC_X86_REG_FLAGS)
+except ImportError:             # the VGM writer below is still usable (usdmodel.py)
+    Uc = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
@@ -105,6 +108,8 @@ class EmuError(Exception):
 
 class USDEmu:
     def __init__(self, ov1=None, musdir=None, cpu=3, verbose=False, init=True):
+        if Uc is None:
+            raise EmuError('usdemu needs the unicorn package (use $EMU_PYTHON)')
         self.verbose = verbose
         self.musdir = musdir or MUSDIR
         self.cpu = cpu
@@ -375,8 +380,7 @@ class USDEmu:
         self._push(0x0202, STUBSEG, SENT_OFF)
         self.kind = 'C'
         self._foreground(seg, off)
-        ss, sp = uc.reg_read(UC_X86_REG_SS), uc.reg_read(UC_X86_REG_SP)
-        # the handler's IRET popped the frame: flags are live
+        # the handler's IRET popped the frame: the returned flags are live
         return (uc.reg_read(UC_X86_REG_AX), uc.reg_read(UC_X86_REG_BX),
                 uc.reg_read(UC_X86_REG_FLAGS) & 1)
 
@@ -468,6 +472,15 @@ class USDEmu:
         self.files[name.upper()] = bytes(data)
         return self.load(name)
 
+    def load_bank(self, data, name='BANK.USO'):
+        """INT F4h AH=10h: stop everything, read an effect bank to 2B0F:3000"""
+        self.files[name.upper()] = bytes(data)
+        return self.int_f4(0x10, bx=self._name(name))[2]
+
+    def play_se(self, index):
+        """INT F4h AH=11h: start entry BX of the effect bank"""
+        return self.int_f4(0x11, bx=index)[2]
+
     def _started(self):
         self.t0 = self.clk
         self.atick = 0
@@ -501,16 +514,15 @@ class USDEmu:
     def stop(self):
         return self.int_f4(0x02)[2]
 
+    def stop_owner(self, owner):
+        """internal service AH=84h: usd_stop with DX = owner (0 = everything)"""
+        return self.int_f4(0x84, dx=owner)[2]
+
     def fade(self, period, step, flag=0):
         return self.int_f4(0x05, bx=period, cx=step, dx=flag)[2]
 
     def enable(self, mask):
         return self.int_f4(0x06, al=0, cx=mask)[0]
-
-
-_ALLREGS = (UC_X86_REG_AX, UC_X86_REG_BX, UC_X86_REG_CX, UC_X86_REG_DX, UC_X86_REG_SI,
-            UC_X86_REG_DI, UC_X86_REG_BP, UC_X86_REG_SP, UC_X86_REG_DS, UC_X86_REG_ES,
-            UC_X86_REG_SS, UC_X86_REG_CS, UC_X86_REG_IP, UC_X86_REG_FLAGS)
 
 
 # ---------------- VGM ----------------
