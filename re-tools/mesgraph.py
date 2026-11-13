@@ -4,10 +4,13 @@ asset checks (research tool; parser: source/tools/mes.py; findings: docs/re/scri
 docs/re/disks.md).
 
   python3 -I re-tools/mesgraph.py [export] [--mes DIR] [--ini FILE] [--out DIR] [--inventory TSV]
+                                           [--images DIR]
   python3 -I re-tools/mesgraph.py catalog resources/scripts.tsv     # refresh size / successors
 
 Defaults: --mes resources/original/pc98/A/MES, --ini resources/original/pc98/A/NV.INI,
---out resources/derived/scripts, --inventory resources/inventory.tsv (release pc98).
+--out resources/derived/scripts, --inventory resources/inventory.tsv (release pc98),
+--images resources/derived/images/gpc (decoded pictures + index.tsv; used only to compare the
+files of a name that differs between disks).
 
 export writes into --out (git-ignored; the tables quote menu texts):
   transitions.tsv   every mes-jump / flag-load with the conditions on the way to it
@@ -309,6 +312,84 @@ def load_inventory(path, release='pc98'):
     return pics, files
 
 
+def read_png(path):
+    """Palettised PNG (as written by the picture exporter) -> (w, h, rows of indices, palette bytes)."""
+    import struct
+    import zlib
+    d = open(path, 'rb').read()
+    p, idat, plte = 8, b'', b''
+    while p < len(d):
+        n, typ = struct.unpack('>I4s', d[p:p + 8])
+        body = d[p + 8:p + 8 + n]
+        if typ == b'IHDR':
+            w, h, depth, ctype = struct.unpack('>IIBB', body[:10])
+        elif typ == b'PLTE':
+            plte = body
+        elif typ == b'IDAT':
+            idat += body
+        p += 12 + n
+    if ctype != 3:
+        raise ValueError('not a palettised PNG')
+    raw = zlib.decompress(idat)
+    stride = (w * depth + 7) // 8
+    rows, prev = [], bytearray(stride)
+    for y in range(h):
+        f = raw[y * (stride + 1)]
+        cur = bytearray(raw[y * (stride + 1) + 1:(y + 1) * (stride + 1)])
+        for i in range(stride):
+            a = cur[i - 1] if i else 0
+            b, c = prev[i], (prev[i - 1] if i else 0)
+            if f == 1:
+                cur[i] = (cur[i] + a) & 255
+            elif f == 2:
+                cur[i] = (cur[i] + b) & 255
+            elif f == 3:
+                cur[i] = (cur[i] + (a + b) // 2) & 255
+            elif f == 4:
+                pa, pb, pc = abs(b - c), abs(a - c), abs(a + b - 2 * c)
+                cur[i] = (cur[i] + (a if pa <= pb and pa <= pc else b if pb <= pc else c)) & 255
+        if depth == 8:
+            rows.append(bytes(cur))
+        else:
+            mask = (1 << depth) - 1
+            rows.append(bytes((cur[(x * depth) // 8] >> (8 - depth - (x * depth) % 8)) & mask for x in range(w)))
+        prev = cur
+    return w, h, rows, plte
+
+
+def on_screen(imgdir, index, disk, name):
+    """The picture as it lands on the 640x400 screen: (list of 400 rows of indices, palette)."""
+    key = '%s_%s.png' % (disk, name[:-4])
+    x, y = index[key]
+    w, h, rows, plte = read_png(os.path.join(imgdir, key))
+    scr = [bytearray(640) for _ in range(400)]
+    for r in range(h):
+        scr[y + r][x:x + w] = rows[r]
+    return scr, plte
+
+
+def compare_variants(imgdir, pics, name):
+    """Do the differing files of one name show the same picture? -> text for the report."""
+    idx = {}
+    try:
+        with open(os.path.join(imgdir, 'index.tsv'), encoding='utf-8') as fh:
+            fh.readline()
+            for line in fh:
+                r = line.split('\t')
+                idx[r[0]] = (int(r[2]), int(r[3]))
+        disks = [d for d in DISKS if name in pics.get(d, {})]
+        ref, refpal = on_screen(imgdir, idx, disks[0], name)
+        out = []
+        for d in disks[1:]:
+            scr, pal = on_screen(imgdir, idx, d, name)
+            n = sum(1 for y in range(400) for x in range(640) if scr[y][x] != ref[y][x])
+            out.append('%s vs %s: %d of 256000 screen pixels differ (palette indices), palette %s'
+                       % (disks[0], d, n, 'identical' if pal[:48] == refpal[:48] else 'DIFFERENT'))
+        return '; '.join(out)
+    except (OSError, KeyError, ValueError) as e:
+        return 'not compared (%s)' % e
+
+
 def resolve(ref, drive):
     """image-file operand + drive state -> (unit, [disk letters]) under the drive model."""
     r = ref.upper()
@@ -381,7 +462,7 @@ def edges(infos):
     return e, savers
 
 
-def export(infos, start, entry, out, pics, files):
+def export(infos, start, entry, out, pics, files, imgdir=None):
     os.makedirs(os.path.join(out, 'skeleton'), exist_ok=True)
 
     def tsv(fn, head, rows):
@@ -518,6 +599,8 @@ def export(infos, start, entry, out, pics, files):
         multi = sorted({(r[2].upper().split('\\')[-1], r[6]) for r in prow if r[7] > 1})
         rep.append('Names with different contents on different disks: ' + ('; '.join('%s on %s' % m for m in multi) or 'none'))
         for name, _ in multi:
+            if imgdir:
+                rep.append('  %s on screen (decoded pictures in %s): %s' % (name, os.path.relpath(imgdir, ROOT), compare_variants(imgdir, pics, name)))
             by = collections.defaultdict(set)
             for r in prow:
                 if r[2].upper().endswith('\\' + name):
@@ -630,7 +713,8 @@ def main(argv):
     opt = dict(mes=os.path.join(ROOT, 'resources', 'original', 'pc98', 'A', 'MES'),
                ini=os.path.join(ROOT, 'resources', 'original', 'pc98', 'A', 'NV.INI'),
                out=os.path.join(ROOT, 'resources', 'derived', 'scripts'),
-               inventory=os.path.join(ROOT, 'resources', 'inventory.tsv'))
+               inventory=os.path.join(ROOT, 'resources', 'inventory.tsv'),
+               images=os.path.join(ROOT, 'resources', 'derived', 'images', 'gpc'))
     pos = []
     a = argv[1:]
     while a:
@@ -645,7 +729,7 @@ def main(argv):
     infos, start, entry = build(opt['mes'], opt['ini'])
     if cmd == 'export':
         pics, files = load_inventory(opt['inventory'])
-        export(infos, start, entry, opt['out'], pics, files)
+        export(infos, start, entry, opt['out'], pics, files, opt['images'] if os.path.isdir(opt['images']) else None)
     elif cmd == 'catalog' and len(pos) == 2:
         catalog(pos[1], infos)
     else:

@@ -110,7 +110,7 @@ it are separated by A4. "NOVA" = how often the opcode occurs in the 119 Japanese
 | C4 | – | a b | rewind the animations, draw frame b of bank a&1 | E875 | 0 |
 | C5 | – | a b | text colour a triggers animation slot b; rewind | E88D | 0 |
 | C6 | – | a b c d e | "curtain" dissolve on the text layer over cells (a,b)–(c,d): e ≤ 7 cover in colour e, e > 7 uncover (advbios.md §5.6) | E8A0 | 2 |
-| C7 | save-check | n | flags 1000..1000+n−1 := save file exists | E8BC | 1 |
+| C7 | save-check | n | flags 1000..1000+n := save file 0..n exists (n ≤ 9) | E8BC | 1 |
 | C8 | load-mem | "s" [addr] | read a file to DS:addr (default 0x100) | E901 | 228 |
 | C9 | image-file | "s" | read a picture file into the picture buffer | E919 | 1038 |
 | CA | – (print-var) | [n] | beep pitch n (default 880) | E92D | 0 |
