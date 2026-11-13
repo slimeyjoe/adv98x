@@ -37,6 +37,32 @@ NUMS = {0xA6: 4, 0xA7: 2, 0xA9: 2, 0xB8: 2, 0xBA: 1, 0xBE: 1, 0xC3: 2, 0xC4: 2, 
         0xD6: 0, 0xD7: 0, 0xD8: 0, 0xAA: 1}
 
 
+def decode_text(raw):
+    """Shift-JIS text -> str. The PC-98 character generator has half-width glyphs under
+    two-byte codes (JIS rows 29h-2Bh = Shift-JIS 85xx/86xx), which cp932 lacks; the English
+    translation is written with them. They are shown as the half-width characters:
+    8540..859E = 21h..7Eh, 859F..85DD = A1h..DFh (katakana), 8640 = blank."""
+    out = []
+    i = 0
+    while i < len(raw):
+        b = raw[i]
+        if is_lead(b) and i + 1 < len(raw):
+            t = raw[i + 1]
+            if b == 0x85 and 0x40 <= t <= 0x9E and t != 0x7F:
+                out.append(chr(0x21 + t - 0x40 - (t > 0x7F)))
+            elif b == 0x85 and 0x9F <= t <= 0xDD:
+                out.append(bytes((0xA1 + t - 0x9F,)).decode('cp932'))
+            elif b == 0x86 and t == 0x40:
+                out.append(' ')
+            else:
+                out.append(raw[i:i + 2].decode('cp932', 'replace'))
+            i += 2
+        else:
+            out.append(bytes((b,)).decode('cp932', 'replace'))
+            i += 1
+    return ''.join(out)
+
+
 class ParseError(Exception):
     pass
 
@@ -146,7 +172,7 @@ class Script:
         def flush(at):
             nonlocal text_start, text
             if text:
-                out.append(('text', text_start, at, b''.join(text).decode('cp932', 'replace')))
+                out.append(('text', text_start, at, decode_text(b''.join(text))))
             text_start, text = None, []
         while True:
             b = d[p]

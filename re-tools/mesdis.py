@@ -51,7 +51,7 @@ def listing(sc, out):
             elif k == 'ctl':
                 out.append(head + n[3])
             elif k == 'ascii':
-                out.append(head + 'ascii "%s"' % n[3].decode('cp932', 'replace'))
+                out.append(head + 'ascii "%s"' % mes.decode_text(n[3]))
             elif k in ('reg', 'var'):
                 out.append(head + fmt_cond(n, False))
             elif k == 'end':
@@ -125,7 +125,7 @@ def export(outdir, files):
         def visit(nodes, cond_ctx):
             for n in nodes:
                 if n[0] in ('text', 'ascii'):
-                    t = n[3] if n[0] == 'text' else n[3].decode('cp932', 'replace')
+                    t = n[3] if n[0] == 'text' else mes.decode_text(n[3])
                     strings.append((name, '%04X' % n[1], n[0], t))
                 elif n[0] == 'reg':
                     flags[n[3]]['set=%d' % n[4]] += 1
