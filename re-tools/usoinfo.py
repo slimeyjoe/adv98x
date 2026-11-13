@@ -210,7 +210,7 @@ class TrackFlow:
     def __init__(self):
         self.ended = False        # reached FF
         self.total = 0            # ticks until FF (ended) or until the state first repeats
-        self.loop_start = None    # tick at which the repeating part begins
+        self.loop_start = None    # tick at which the repeating part is first entered
         self.loop_len = None
         self.tempos = []          # (tick, word) tempo commands, tick = 0-based start tick of the row
         self.notes = 0
@@ -223,16 +223,26 @@ def flow(song, ti, max_events=2000000):
     """Follow track ti the way the driver does (loop counters 0328:1A7A / 1A99) without
     producing sound: returns tick positions, loop structure and tempo commands."""
     t = song.tracks[ti]
-    d = song.data
     f = TrackFlow()
+    targets = set(i.target for i in t.ins if i.target is not None)
     cnt = {}
     pos = t.start
     tick = 0
     seen = {}
-    last_tick_at_jump = None
     while f.events < max_events:
         if pos not in t.by_off:
             raise FormatError('%s track %d: flow leaves the track at %04X' % (song.name, ti, pos))
+        if pos in targets:
+            # a jump target reached again with the same loop counters: the track repeats
+            key = (pos, tuple(sorted((k, v) for k, v in cnt.items() if v)))
+            if key in seen:
+                t0, ntemp = seen[key]
+                if tick == t0:
+                    f.stuck = True
+                else:
+                    f.loop_start, f.loop_len = t0, tick - t0
+                break
+            seen[key] = (tick, len(f.tempos))
         ins = t.by_off[pos]
         f.events += 1
         nxt = pos + ins.size
@@ -240,17 +250,13 @@ def flow(song, ti, max_events=2000000):
             if ins.name == 'note':
                 f.notes += 1
             tick += ins.length if ins.length else 65536     # counter 0 wraps: 65536 ticks
-            pos = nxt
-            continue
-        taken = False
-        if ins.name == 'end':
+        elif ins.name == 'end':
             f.ended = True
             break
         elif ins.name == 'tempo':
             f.tempos.append((tick, ins.args[0]))
         elif ins.name == 'jump':
             nxt = ins.target
-            taken = True
         elif ins.name == 'loop_exit':
             n, c = ins.args[0], ins.args[1]
             f.max_loop_index = max(f.max_loop_index, n)
@@ -260,31 +266,16 @@ def flow(song, ti, max_events=2000000):
                 cnt[n] = (cnt[n] - 1) & 0xFF
                 if cnt[n] == 0:
                     nxt = ins.target
-                    taken = True
         elif ins.name == 'loop_back':
             n, c = ins.args[0], ins.args[1]
             f.max_loop_index = max(f.max_loop_index, n)
             if cnt.get(n, 0) == 0:
                 cnt[n] = c
                 nxt = ins.target
-                taken = True
             else:
                 cnt[n] = (cnt[n] - 1) & 0xFF
                 if cnt[n] != 0:
                     nxt = ins.target
-                    taken = True
-        if taken and nxt <= pos:
-            key = (nxt, tuple(sorted((k, v) for k, v in cnt.items() if v)))
-            if key in seen:
-                t0, ntemp = seen[key]
-                if tick == t0:
-                    f.stuck = True
-                    break
-                f.loop_start, f.loop_len = t0, tick - t0
-                f.tempos_in_loop = f.tempos[ntemp:]
-                f.tempos = f.tempos[:ntemp] + f.tempos_in_loop
-                break
-            seen[key] = (tick, len(f.tempos))
         pos = nxt
     f.total = tick
     return f

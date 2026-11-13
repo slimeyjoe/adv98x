@@ -179,7 +179,7 @@ drive mapping decides which file is read.
   (`byte = ror(byte, 4) xor key`) and remembers the first 16-byte boundary after the next FEh byte;
   key = 0 calls the code there with BX = 0xEA84. Only `NV.INI` uses it (§7).
 
-NOVA's five plug-ins are documented in [plugins.md](plugins.md) (to do).
+NOVA's five plug-ins are documented in [plugins.md](plugins.md).
 
 ## 7. `NV.INI`: start script and copy protection (**verified**)
 

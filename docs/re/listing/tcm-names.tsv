@@ -1,0 +1,212 @@
+# Names for NOVA's machine-code plug-ins (resources/original/pc98/A/*.TCM).
+# FILE<TAB>OFFSET (hex, from the start of the file)<TAB>name<TAB>comment
+# A comment starting with "data" marks data; everything else is a code entry.
+# Regenerate annotated listings (into resources/derived/listing/, not tracked):
+#     $EMU_PYTHON re-tools/tcmtool.py list
+# Behaviour is documented in docs/re/plugins.md.
+CHGFONTH	0000	entry	AL = (argc ? arg1 & 1 : 0); INT F6h AH=13h; CH=FFh; near ret
+PALCH	0000	entry	stub: near return -> far, CS rebased to load offset/16 (offset must be a multiple of 16, else return at once)
+PALCH	0020	main	setup, run, cleanup; CH=FFh; retf
+PALCH	0029	ret_no_result	mov ch,FFh; retf
+PALCH	002C	setup	hook interrupts, init variables
+PALCH	0033	run	parse_args, set_now, glide
+PALCH	003D	cleanup	unhook interrupts
+PALCH	0041	init_vars	DS=ES=CS; save arg pointer; clear error/glide flags and accumulators
+PALCH	0065	parse_args	argc>=4: index, c0, c1, c2 (each <=15); argc>=5: speed (<=255) -> glide
+PALCH	00AB	parse_fail	sets arg_error
+PALCH	00B5	set_now	argc==4: BX = c2<<8 | c1<<4 | c0; INT F3h AH=15h, CL=0Fh
+PALCH	00E6	glide	read current colour (AH=16h), 15 x {step, wait, set}
+PALCH	010F	glide_prepare	per component: cur, direction, step = |target-cur|+1
+PALCH	0139	glide_step	acc += step; on carry out of the low nibble cur +/-= 1
+PALCH	016F	glide_apply	BX from cur[2..0]; wait speed VSYNCs; set colour
+PALCH	018B	f3_set_colour	INT F3h AH=15h
+PALCH	0190	f3_get_colour	INT F3h AH=16h
+PALCH	0196	vsync_isr	INT 0Ah handler: vsync_count++, EOI, re-arm (out 64h); does not chain
+PALCH	01A9	int18_wrapper	calls the old INT 18h, then re-arms VSYNC (out 64h)
+PALCH	01B4	hook_ints	save and replace vectors 0Ah (AX) and 18h; unmask IRQ2; arm VSYNC
+PALCH	01F2	unhook_ints	restore both vectors; mask IRQ2 (unconditionally)
+PALCH	0219	hook_vsync	hook_ints with AX = vsync_isr
+PALCH	0222	wait_vsync	spin until vsync_count changes
+PALCH	0232	wait_speed	wait_vsync x speed
+PALCH	024A	speed	data byte: VSYNCs per glide step (file: 1)
+PALCH	024B	vsync_count	data byte
+PALCH	024C	old_int0A	data dword
+PALCH	0250	old_int18	data dword
+PALCH	0254	arg_ptr	data dword (beyond file end): offset, segment of the argument block
+PALCH	0258	arg_error	data byte
+PALCH	0259	arg_index	data byte: palette index
+PALCH	025A	target	data 3 bytes: c0 (blue), c1 (red), c2 (green); glide: the three step values
+PALCH	025D	glide_flag	data byte: 1 = five arguments
+PALCH	025E	cur	data 3 bytes: current blue, red, green
+PALCH	0261	dir	data 3 bytes: 1 = component decreases
+PALCH	0264	acc	data 3 bytes: 4-bit accumulators
+WHITEH	0000	entry	stub as PALCH (also DI = new CS)
+WHITEH	0022	main	setup, run, cleanup; CH=FFh; retf
+WHITEH	002B	ret_no_result	
+WHITEH	002E	setup	init_vars, hook_vsync
+WHITEH	0035	run	parse_args, do_fade
+WHITEH	003C	cleanup	unhook_ints
+WHITEH	0040	init_vars	DS=ES=CS; save arg pointer; clear error flag, accumulators and steps
+WHITEH	005E	parse_args	argc>=2: mode (<=2), speed (<=255)
+WHITEH	0089	set_error	
+WHITEH	0097	test_error	ZF=1 if no error
+WHITEH	00A5	do_fade	runs the handler of the selected mode
+WHITEH	00B4	mode0_from_white	target = mailbox palette (INT F3h AH=FFh); start at FFF; fade(BL=1)
+WHITEH	00CF	mode1_to_white	start = current palette (AH=14h); fade(BL=0)
+WHITEH	00E4	mode2_both	mode 1, clear accumulators, mode 0
+WHITEH	0101	read_palette	INT F3h AH=14h -> pal
+WHITEH	0112	copy_mailbox	16 words ES:DI -> pal
+WHITEH	0127	make_steps	step[i] = 16 - nibble, 48 nibbles (blue, red, green per colour)
+WHITEH	015F	fade	speed-- if non-zero; 15 steps; BL: 0 add, 1 subtract
+WHITEH	0184	fade_step	acc += step; carry out of the low nibble -> +/-1 on that nibble of pal
+WHITEH	01BA	wait_and_set	wait speed VSYNCs; INT F3h AH=13h AL=0Fh DS:SI=pal
+WHITEH	01CA	get_mailbox	INT F3h AH=FFh -> ES:DI
+WHITEH	01D2	pal_white	pal = 16 x 0FFFh
+WHITEH	01EA	clear_acc	
+WHITEH	01FF	f3_set_palette	INT F3h AH=13h
+WHITEH	0204	f3_get_palette	INT F3h AH=14h
+WHITEH	0209	f3_mailbox	INT F3h AH=FFh -> ES:BX
+WHITEH	0210	vsync_isr	INT 0Ah handler: vsync_count++, EOI, re-arm, then jump to the old handler
+WHITEH	0228	int18_wrapper	calls the old INT 18h, then re-arms VSYNC
+WHITEH	0233	hook_ints	as PALCH, but remembers the interrupt mask
+WHITEH	0278	unhook_ints	restore vectors and the saved interrupt mask
+WHITEH	02A2	hook_vsync	
+WHITEH	02AB	wait_vsync	spin until vsync_count changes
+WHITEH	02BB	wait_speed	wait_vsync x speed
+WHITEH	02D3	saved_imr	data byte
+WHITEH	02D4	speed	data byte (file: 1)
+WHITEH	02D5	vsync_count	data byte
+WHITEH	02D6	old_int0A	data dword
+WHITEH	02DA	old_int18	data dword
+WHITEH	02DE	arg_ptr	data dword
+WHITEH	02E2	arg_error	data byte
+WHITEH	02E3	mode	data byte (last byte of the file)
+WHITEH	02E4	pal	data 16 words (beyond file end): working palette
+WHITEH	0304	acc	data 48 bytes: accumulators
+WHITEH	0334	step	data 48 bytes: 16 - component
+INPUTNAM	0000	entry	stub: far-calls main in the rebased segment, returns through ret_no_result in the original copy
+INPUTNAM	001D	ret_no_result	mov ch,FFh; near ret
+INPUTNAM	0020	main	parse_args; if ok: input_name
+INPUTNAM	002C	parse_args	needs AdvBIOS >= 0.53 and argc >= 5; AX=0 ok, FFFFh error
+INPUTNAM	00C2	input_name	cursor, edit loop, write file, restore text colour
+INPUTNAM	00FC	write_name	name + 256 x FFh -> A:\NAME.DEF (256 bytes); retries until written
+INPUTNAM	0138	draw_cell	DX = Shift-JIS char: clear cell number count (16x16), draw the char there
+INPUTNAM	0176	edit_loop	returns on Return
+INPUTNAM	0196	add_char	DI = char; ignored when count == maxlen
+INPUTNAM	01B6	backspace	
+INPUTNAM	01C7	draw_cursor	draw the triangle at cell count, terminate the name
+INPUTNAM	01DC	dakuten	previous char in tab_dakuten: code + 1
+INPUTNAM	020D	handakuten	previous char in tab_handakuten: code + 2
+INPUTNAM	0234	find_word	AX in FFFFh-terminated list DS:SI? ZF=1 found
+INPUTNAM	0242	get_key	DI = 0 none, 8 erase, 0Dh Return, else Shift-JIS code
+INPUTNAM	0290	key_kana	half-width kana A0..DF -> tab_kana
+INPUTNAM	02A2	key_alnum	0-9 A-Z a-z -> full-width 824F.., 8260.., 8281..
+INPUTNAM	02B0	file_name	data "A:\NAME.DEF"
+INPUTNAM	02BC	tab_kana	data 64 words (high byte first): hiragana for key codes A0..DF, 0 = ignored
+INPUTNAM	033C	tab_dakuten	data words: ka..to (15), continues into tab_handakuten
+INPUTNAM	035A	tab_handakuten	data words: ha hi fu he ho, FFFFh
+INPUTNAM	0366	text_colour	data byte (beyond file end)
+INPUTNAM	0367	back_colour	data byte
+INPUTNAM	0368	saved_colour	data byte
+INPUTNAM	036A	field_x	data word: byte column
+INPUTNAM	036C	field_y	data word: line
+INPUTNAM	036E	maxlen	data word: 1..6 characters
+INPUTNAM	0370	default_name	data 16 bytes: copy of the string argument, 00 00 terminated
+INPUTNAM	0380	typed	data 16 bytes: typed characters, 2 bytes each, 00 00 terminated
+INPUTNAM	0390	count	data word: characters typed
+INPUTNAM	0392	cell_rect	data 4 words x0,y0,x1,y1
+INPUTNAM	039A	out_buf	data: file image
+ACTE1	0000	entry	stub as PALCH; load offset must be a multiple of 16
+ACTE1	001C	main	run_string; CH=FFh; retf
+ACTE1	0022	run_string	SI = first argument (address of the opening quote); commands separated by commas until the closing quote
+ACTE1	0042	dispatch	first letter (upper-cased) -> cmd_table; counts the command
+ACTE1	006E	wait_vsync	poll port A0h bit 5: wait for clear, then for set
+ACTE1	0080	check_size	CF=1 if w*h >= 4000h
+ACTE1	0096	skip_word	advance SI to the next space, tab, quote or comma
+ACTE1	00AA	skip_blanks	skip spaces and tabs
+ACTE1	00B6	get_number	unsigned decimal, 16-bit wrap, no digits = 0
+ACTE1	00DA	get_token	copy up to space/tab/quote/comma to ES:DI, add NUL
+ACTE1	00F4	cmd_PUT	PUT n x y
+ACTE1	0186	put_over	transparent put through a temporary copy of the screen area
+ACTE1	02B8	put_plain	VSYNC wait if show == acce, then copy 4 planes
+ACTE1	0300	clip_to_view	clip rectangle x,y..put_x1,put_y1 to the view; CF=1 if empty
+ACTE1	03B4	err_put_null	
+ACTE1	03C0	err_put_nomem	
+ACTE1	03CC	err_put_number	
+ACTE1	03D8	cmd_GET	GET n x y w h
+ACTE1	049E	err_get_nomem	
+ACTE1	04AA	err_get_size	
+ACTE1	04B4	cmd_SHOW	SHOW page
+ACTE1	04D8	cmd_ACCE	ACCE page
+ACTE1	04FA	cmd_COPY	COPY spage x y w h dpage x2 y2
+ACTE1	071B	copy_check	
+ACTE1	0778	cmd_MOVE	MOVE x y w h x2 y2
+ACTE1	08EA	move_check	
+ACTE1	0928	cmd_OVER	OVER flag
+ACTE1	094A	cmd_FREE	FREE n
+ACTE1	0982	cmd_WAIT	WAIT frames
+ACTE1	0996	cmd_LOAD	LOAD file
+ACTE1	09F2	cmd_VIEW	VIEW x0 y0 x1 y1
+ACTE1	0A0C	view_check	
+ACTE1	0A40	cmd_INIT	INIT
+ACTE1	0A84	cmd_EXIT	EXIT (also called by INIT)
+ACTE1	0AB4	error	AX = command number, BX = message number, CX = number: message on text line 23, wait for input, cond = FFFFh. Pops one word too many
+ACTE1	0B24	tprint	print DS:SI on the text screen (A000h/A200h), control codes via tprint_ctl
+ACTE1	0BAA	tctl_tab	09h: x += 8
+ACTE1	0BB2	tctl_cr	0Ah: x = 0
+ACTE1	0BBA	tctl_home	0Bh
+ACTE1	0BCA	tctl_cls	0Ch: clear the text screen, home
+ACTE1	0BFA	tctl_down	0Dh: y += 1
+ACTE1	0C02	tctl_setx	0Eh n
+ACTE1	0C0A	tctl_sety	0Fh n
+ACTE1	0C12	tctl_attr	10h n
+ACTE1	0C1A	tctl_left	08h
+ACTE1	0C20	print_dec4	
+ACTE1	0C4E	print_dec2	
+ACTE1	0C70	print_dec3	
+ACTE1	0CA0	print_dec5	
+ACTE1	0CDC	dec_digit	
+ACTE1	0CF8	print_hex4	
+ACTE1	0D34	cmd_HALT	HALT: status screen, wait for input
+ACTE1	0E76	halt_counters	
+ACTE1	02AE	po_w	data 5 words: put_over temporaries (w, h, plane size, block segment, temp segment)
+ACTE1	070F	cp_tmp	data: COPY temporaries (dest copy seg, source copy seg, spage, dpage, source offset, dest offset)
+ACTE1	08E5	mv_src	data 2 words: MOVE source and destination offsets
+ACTE1	09C9	load_name	data 41 bytes: banner "ACTE Spec1 Rel.8 1992/10/27 MD.dan Ides'", overwritten by LOAD with the file name
+ACTE1	0B81	tprint_ctl	data: {code, 0, handler} x 9, 0
+ACTE1	0D23	hex_digits	data "0123456789ABCDEF"
+ACTE1	0EBC	cond	data word: 0 = ok, FFFFh = an error happened (PUT GET COPY MOVE LOAD are then skipped)
+ACTE1	0EBE	acce_page	data word: page selected for drawing (port A6h)
+ACTE1	0EC0	show_page	data word: page displayed (port A4h)
+ACTE1	0EC2	over_flag	data word: 0 opaque, FFFFh colour 0 transparent
+ACTE1	0EC4	arg_x	data word
+ACTE1	0EC6	arg_y	data word
+ACTE1	0EC8	arg_w	data word
+ACTE1	0ECA	arg_h	data word
+ACTE1	0ECC	arg_x2	data word
+ACTE1	0ECE	arg_y2	data word
+ACTE1	0ED0	view	data 4 words x0 y0 x1 y1 (file: 0 0 79 399)
+ACTE1	0ED8	gpc_block	data 8 words: plane segments A800 B000 B800 E000, x=FFFF, y=FFFF, transparent flag (= over_flag), palette flags 3; INT F3h AH=01h parameter block
+ACTE1	0EE8	cmd_table	data: {letter, handler} x 14, 0: P G S A C M O F W L V I E H
+ACTE1	0F13	table_seg	data word: segment of the slot table (64 x {segment, w, h, unused}); 0 = none
+ACTE1	0F15	msg_sep	data: error text pieces
+ACTE1	0F1E	cmd_names	data 14 x 5 bytes
+ACTE1	0F64	err_msgs	data 4 words -> "Accessed null pointer", "Out of memory", "Oversize", "Overspec number "
+ACTE1	0FAC	tx	data word: text column
+ACTE1	0FAE	ty	data word: text line
+ACTE1	0FB0	tattr	data word: text attribute
+ACTE1	0FB2	halt_text	data: texts of the error line and the HALT screen
+ACTE1	1099	counters	data 15 bytes: calls per command (P G S A C M O F W L V I E H, unknown)
+ACTE1	10A8	put_x1	data word (beyond file end): right column, inclusive
+ACTE1	10AA	put_y1	data word: bottom line, inclusive
+ACTE1	10AC	put_skipx	data word: columns clipped on the left
+ACTE1	10AE	put_skipy	data word: lines clipped at the top
+ACTE1	10B0	put_src	data word: offset in the block
+ACTE1	10B2	put_dst	data word: VRAM offset y*80+x
+ACTE1	10B4	numbuf	data 6 bytes
+ACTE1	0006	rebase	compute the new CS and far-jump to main
+ACTE1	0E9C	halt_sep1	
+ACTE1	0EAC	halt_sep2	
+PALCH	0006	rebase	
+WHITEH	0006	rebase	
+INPUTNAM	0003	rebase	
