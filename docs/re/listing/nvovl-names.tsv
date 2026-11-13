@@ -1,0 +1,93 @@
+0000	entry	shrink memory, check AdvBIOS, copy start script name, jump to C000
+0100	copy_start_name	0x1FC -> file-name buffer
+0113	fatal	print "ERROR: " + message AX (1..5), exit FFh
+C000	jt_restart	jmp restart
+C003	jt_run_saved	jmp run_saved (plug-in entry)
+DC97	restart	clear memory, load the start script, run it
+DD14	abort_unwind	restore the top-level SP and return (exit)
+DD1B	exit_program	print the banner, INT 21h/4Ch
+DD31	abort_handler	registered with AdvBIOS F1h AX=1000h
+DD66	run_saved	run with the text state saved and restored
+DD70	run_sub	run a sub-script (own unwind SP)
+DD86	state_push	push D008..D01E
+DDC6	state_pop	pop them and re-apply to AdvBIOS
+DE01	state_apply	F6h AH=1,3,7,5
+DE2F	run	the statement loop
+DF5E	reg_assign	flag token: set / clear
+DF6B	var_assign	variable token: = + -
+DF8B	op_A6_text_frame
+DFBF	op_A7_text_pos
+DFD4	op_A8_text_color
+DFF2	op_A9_text_speed
+E005	op_AA_text_clear
+E00A	text_clear_default	clear the frame with the stored attribute, cursor to its origin
+E01E	op_AB_wait
+E031	op_AC_delay
+E042	op_AD_menu
+E048	menu_select	shared menu display + selection
+E238	menu_mouse_to_item
+E259	menu_item_at_mouse
+E294	menu_layout	run the head, lay out the items
+E2D8	menu_layout_item
+E335	alt_exec	evaluate conditions; run the alternative or skip it (AL = FFh)
+E3A1	menu_highlight	F6h AH=0Eh on the item rectangle
+E3CB	op_AE_menu2
+E47B	op_AF_seg_call
+E481	seg_scan	find and run the first later segment whose conditions hold
+E4F3	op_B0_exec_file
+E512	call_plugin	push DS ES SI DI; call [DB03]
+E59A	op_B1_mes_jump
+E5BC	op_B2_branch_random
+E5CA	branch_select	run alternative CL (wrapping), skip the block
+E5E6	op_B3_branch_cycle
+E5F6	op_B4_branch_var
+E608	op_B5_branch_reg
+E61B	op_B6_input
+E65F	op_B7_screen_mode
+E6B1	op_B8
+E6C8	op_B9_define_proc
+E6DF	op_BA_proc
+E6F2	op_BB_repeat
+E708	op_BC_if
+E71F	op_BD_when
+E72A	op_BE_flag_save
+E753	op_BF_flag_load
+E7E9	op_C0_mes_call
+E828	op_D4_exit
+E83D	op_C1_image_file_to
+E859	op_C2_gfx_string
+E867	op_C3
+E875	op_C4
+E88D	op_C5
+E8A0	op_C6
+E8BC	op_C7_save_check
+E901	op_C8_load_mem
+E919	op_C9_image_file
+E92D	op_CA
+E942	op_CB
+E950	op_CC_reg_clear
+E9A1	op_CD_exec_mem
+EA32	op_CE_set_drive
+EA4A	op_CF_image_show	EA84: the two bytes the protection patches to int F3h
+EA88	op_D5_decrypt
+EAD4	decrypt_code_ptr	word: address of the code appended to a decrypted script
+EAD6	op_D0_sound
+EB63	op_D1_fade
+EBE2	op_D2_name_load
+EC14	op_D3_menu_step
+EC21	op_nop	D6..D8
+EC22	skip_block	to after the matching closer (DH opener, DL closer)
+EC54	get_number	AX = operand, ZF = none present
+ECA3	reg_addr	BX = byte address, DH = bit mask, ZF = (token says 0)
+ECC2	var_addr	BX = address, CH = operand, CL = current value, AH = operation
+ECDF	skip_alt	to after the next A4 (AL = 0) or the closing A3 (AL = FFh)
+ED25	copy_block	copy through the matching closer to BX
+ED3B	skip_token	length of one token for the scanners
+ED87	is_lead_byte	CF clear for 81..9F, E0..FC
+EDA3	key_flush
+EDAC	abort_poll0	F1h AX=0F00h
+EDB2	abort_poll1	F1h AX=0F01h
+EDC1	copy_string	copy up to the closing quote to DI, ASCIIZ
+EDD0	save_read	read A:\FLAGn into DB20; AX = its last byte or 0
+EDF5	save_load	save_read + copy to 0000
+EE13	save_write
