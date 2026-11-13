@@ -191,15 +191,11 @@ class Analysis:
                             tgt = tseg * 16 + toff
                             self.add_xref(tgt, lin)
                             self.funcs.setdefault(tgt, tseg)
-                            sub = Analysis.__new__(Analysis)
-                            # explore in the other segment with shared state
-                            self._explore_other(tseg, toff)
+                            # explore in the other segment (shared state)
+                            self.explore(tseg, toff, True)
                 if iid in FLOW_END:
                     break
                 lin = nxt
-
-    def _explore_other(self, seg, off):
-        self.explore(seg, off, True)
 
     def _table(self, i, lin, seg, fn, work, is_call):
         """jmp/call word ptr cs:[reg*? + disp] -> read a table of near words."""
