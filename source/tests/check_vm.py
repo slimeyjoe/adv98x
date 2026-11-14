@@ -11,7 +11,8 @@ then these must be identical:
     tables, menu2 buffer, procedure slots), the player's name D937-D958h, the parameter and
     file-name buffers D9E3-DAFFh and the save buffer DB20-DC1Fh. (0100-8FFFh holds the
     plug-ins' code in the original and is not compared; the engine replaces them.)
-  * the screen: all four planes of the page;
+  * the screen: all four planes of the page, and, where the pointer is shown, the frame with
+    the pointer (drawn into VRAM by AdvBIOS's driver, into the presented frame by the engine);
   * the DAC (palette at the current brightness);
   * the save files written;
   * the sound calls (INT F4h function and argument), in order.
@@ -84,7 +85,7 @@ def run_reference(original, fonts, lang, saves, keys):
                              storage=storage)
     r = emu.run('\\MES\\RUN.MES')
     written = {k: v for k, v in r['storage'].items() if storage.get(k) != v}
-    return dict(end=r['end'], mem=r['mem'], planes=r['planes'],
+    return dict(end=r['end'], mem=r['mem'], planes=r['planes'], pointer=r['pointer_planes'],
                 dac=[v for rgb in emu.dac for v in rgb], storage=written,
                 sound=['%d %s' % (ah, '-' if a is None else a) for ah, a in r['sound']])
 
@@ -99,7 +100,7 @@ def run_engine(exe, pak, original, lang, saves, keys):
     keystr = ','.join('C:%d:%d' % k[1:] if k[0] == 'click' else 'R*' if k[0] == 'ret*' else
                       '%02X%02X' % k for k in keys) or '-'
     out = subprocess.run([exe, pak, d, lang, keystr], capture_output=True, text=True).stdout
-    r = dict(sound=[], planes=[])
+    r = dict(sound=[], planes=[], pointer=None)
     for line in out.splitlines():
         k, _, v = line.partition(' ')
         if k == 'end':
@@ -108,6 +109,8 @@ def run_engine(exe, pak, original, lang, saves, keys):
             r['mem'] = bytes.fromhex(v)
         elif k == 'plane':
             r['planes'].append(bytes.fromhex(v))
+        elif k == 'pointer':
+            r['pointer'] = (r['pointer'] or []) + [bytes.fromhex(v)]
         elif k == 'dac':
             r['dac'] = [int(x) for x in v.split()]
         elif k == 'sound':
@@ -135,6 +138,12 @@ def compare(name, got, ref):
             n = sum(1 for a, b in zip(got['planes'][p], ref['planes'][p]) if a != b)
             i = next(i for i in range(32000) if got['planes'][p][i] != ref['planes'][p][i])
             bad.append('plane %d: %d bytes differ, first at x %d y %d' % (p, n, (i % 80) * 8, i // 80))
+    if (got['pointer'] is None) != (ref['pointer'] is None):
+        bad.append('pointer shown: engine %s, NV.OVL %s' % (got['pointer'] is not None,
+                                                           ref['pointer'] is not None))
+    elif got['pointer'] is not None and got['pointer'] != ref['pointer']:
+        n = sum(1 for p in range(4) for a, b in zip(got['pointer'][p], ref['pointer'][p]) if a != b)
+        bad.append('the frame with the pointer: %d bytes differ' % n)
     if got.get('dac') != ref['dac']:
         bad.append('dac: engine %s, NV.OVL %s' % (got.get('dac'), ref['dac']))
     if got['storage'] != ref['storage']:
@@ -142,8 +151,9 @@ def compare(name, got, ref):
     if got['sound'] != ref['sound']:
         bad.append('sound: engine %s, NV.OVL %s' % (got['sound'][:12], ref['sound'][:12]))
     script = ref['mem'][0x9A:0xFD].split(b'\0')[0].decode('ascii', 'replace')
-    print('%s: %s at %s, %d sound calls, %d saves: %s' % (
-        name, ref['end'], script, len(ref['sound']), len(ref['storage']),
+    print('%s: %s at %s%s, %d sound calls, %d saves: %s' % (
+        name, ref['end'], script, ' (pointer shown)' if ref['pointer'] else '',
+        len(ref['sound']), len(ref['storage']),
         'OK' if not bad else 'FAILED'))
     for b in bad:
         print('    ' + b)

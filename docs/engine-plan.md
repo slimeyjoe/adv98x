@@ -1,7 +1,7 @@
 # Adv98X — a new engine for Adv98V 1.70.54 games (first game: NOVA)
 
 The implementation plan, approved 2026-11-14. Status: research (phase 1) complete, housekeeping
-before M0 done, **M0–M2 done** (2026-11-14); M3 (menus, mouse, maps, saves) has its code in already and needs its cursor, tests and e2e; then M4. Update the status line and tick milestones here as
+before M0 done, **M0–M3 done** (2026-11-14); M4 (music) next. The new-game e2e of M3 waits for INPUTNAM (M5). Update the status line and tick milestones here as
 they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
@@ -191,7 +191,7 @@ modules NOVA calls around every line (`chgfonth`, `acte1` INIT/GET/PUT/FREE). *T
 run from `RUN.MES` to the title menu and through the opening with the trace compared to a script
 walk. *Check:* play the Japanese and English openings in SDL3.
 
-**M3 — Menus, mouse, maps, saves.** `mes_menu.c` (layout, highlight, keys with the D3 steps, mouse
+**M3 — Menus, mouse, maps, saves.** ✔ `mes_menu.c` (layout, highlight, keys with the D3 steps, mouse
 hover/click/cancel, `menu2` verb/noun with its cycle-counter reset), absolute mouse and `cursor.c`,
 click maps (`input`), `flag-save` / `flag-load` (full and merge) / `save-check`, the built-in
 messages, `name-load`, storage. *Tests:* menu unit tests (item rectangles, key navigation, hidden
@@ -334,3 +334,25 @@ Decisions taken while implementing, where the work refined or departed from the 
   picture shown is named by the current script, no error events.
 - *Doc fix.* `save-check` counts a save only when its last byte is exactly FFh; `flag-load`
   accepts any non-zero byte (interpreter.md §5.1 corrected).
+
+**M3 (2026-11-14)**
+
+- *The reference is the original interpreter.* `re-tools/nvovl_emu.py` runs NV.OVL on AdvBIOS's
+  own code (the harness of M1) with the copy-protection patch applied (`int F3h` at 0xEA84) and
+  AdvBIOS's screen initialisation; files, the keyboard queue, clicks (held in the driver's button
+  variable until the click-map wait returns), the plug-ins' DOS memory and the timer/mouse
+  counters are modelled. `tests/check_vm.py` runs scenarios through it and through the whole
+  engine (`tests/test_vm.c`) and compares the interpreter's memory, the four planes, the frame
+  with the pointer, the DAC, the saves written and the sound calls. This replaces the planned
+  hand-written menu unit tests: menus (keys, menu-step columns, menu2's empty noun list), click
+  maps, `flag-load` of an original save (the dump's FLAG0, a test input), `flag-save` (byte-equal
+  FLAG1), the Sound and Graphic modes and English are covered.
+- *Key timing in the runners.* A key is offered only while the game waits for one (the harness:
+  after three empty polls of the BIOS buffer; the engine runner: during a wait's trace window).
+  The menu's wait-leave trace moved to the moment of the choice: restoring the mouse emulation
+  afterwards waits frames, and a key offered then was dropped by the next menu's flush.
+- *The pointer* (`gfx/cursor.c`): AdvBIOS's default shape, extracted from the user's NV.OV1 at
+  pack time (01AB:09D8), drawn only into the presented frame with save-under; equal to what the
+  driver draws into VRAM. The SDL3 backend hides the host cursor.
+- *Owed to M5:* the new-game path (name entry through INPUTNAM); scenarios `story2`/`story3` are
+  ready in `check_vm.py` (`AFTER_M5`) and run once INPUTNAM exists.

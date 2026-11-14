@@ -275,9 +275,12 @@ class NvOvlEmu(A.AdvBiosEmu):
         if self.end is None:
             raise RuntimeError('NV.OVL stopped at %04X:%04X' % (uc.reg_read(X.UC_X86_REG_CS),
                                                                uc.reg_read(X.UC_X86_REG_IP)))
-        # hide the pointer (restores the screen under it), as the engine draws it outside VRAM
+        # the screen with the pointer, then without it (hiding restores what is under it): the
+        # engine draws the pointer only into the presented frame
+        with_pointer = None
         if struct.unpack('<H', uc.mem_read((0x01AB + A.BASE) * 16 + 0x42A, 2))[0]:
+            with_pointer = self.planes()
             self.call(0x33, ax=2)
         return dict(end=self.end, mem=bytes(uc.mem_read(SEG * 16, 0x10000)),
-                    planes=self.planes(), storage=dict(self.storage), sound=list(self.sound),
+                    planes=self.planes(), pointer_planes=with_pointer, storage=dict(self.storage), sound=list(self.sound),
                     display=list(self.display))

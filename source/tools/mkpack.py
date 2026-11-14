@@ -25,6 +25,8 @@ Contents (types and the layout: source/engine/pack/pack.h, tools/xpak.py):
            the original fragments, taken from the user's NV.OVL (unpacked with
            re-tools/exeunpack.py, 0xD95B-0xD9E2); other languages: our own text in the same
            frame (text-clear 0, colour 15, the text, wait, text-clear 0)
+  BLOB     "cursor": AdvBIOS's default mouse pointer (01AB:09D8 of the user's NV.OV1: width in
+           bytes, height, AND mask, image; advbios.md §6.2)
   META     "profile" (the game: title, start script, plug-in modules, default language),
            "lang" per language (encoding, name), "meta" (pack format)
 Plug-in code (.TCM) and the engine executables are not packed: the engine replaces them.
@@ -77,6 +79,17 @@ def original_messages(nvovl, at):
     if len(frags) != 4 or frags[3] or any(not f.startswith(MSG_HEAD) for f in frags[:3]):
         die('NV.OVL: the built-in messages are not where expected')
     return blob
+
+
+def default_cursor(nvov1):
+    """AdvBIOS's default pointer shape: width (bytes), height, mask and image rows"""
+    img = exeunpack.unpack(nvov1, log=lambda *a: None)
+    hdr = struct.unpack_from('<H', img, 8)[0] * 16
+    at = hdr + 0x1AB0 + 0x9D8
+    w, h = img[at], img[at + 1]
+    if not (1 <= w <= 5 and 1 <= h <= 40):
+        die('NV.OV1: the default pointer is not where expected')
+    return img[at:at + 2 + 2 * w * h]
 
 
 def own_messages(texts):
@@ -175,6 +188,8 @@ def main():
     pk.add('messages', xpak.T_STRINGS, xpak.L_JA, original_messages(nvovl, prof['messages_at']))
     if 'en' in langs:
         pk.add('messages', xpak.T_STRINGS, xpak.L_EN, own_messages(prof['messages_en']))
+    pk.add('cursor', xpak.T_BLOB, xpak.L_ANY,
+           default_cursor(read_checked(inv, a.original, 'pc98', 'A/NV.OV1')))
 
     if a.fonts:
         for name, fname in (('font16', 'k16.xfnt'), ('font8', 'ank8.xfnt')):

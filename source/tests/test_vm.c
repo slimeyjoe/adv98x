@@ -16,6 +16,7 @@
 #include <string.h>
 #include "ax_internal.h"
 #include "hal_file.h"
+#include "gfx/cursor.h"
 
 static const char *g_storage;
 static unsigned g_keys[256];                  /* SSCC, or 0x10000000 | x << 12 | y for a click */
@@ -37,6 +38,16 @@ static void dump(const char *why)
         for (i = 0; i < AX_PLANE_BYTES; i++)
             printf("%02x", ax.page[0].p[p][i]);
         putchar('\n');
+    }
+    if (ax.bios.mouse_shown) {                  /* the frame as presented, with the pointer */
+        cursor_apply(0);
+        for (p = 0; p < 4; p++) {
+            printf("pointer ");
+            for (i = 0; i < AX_PLANE_BYTES; i++)
+                printf("%02x", ax.page[0].p[p][i]);
+            putchar('\n');
+        }
+        cursor_restore(0);
     }
     printf("dac");
     for (i = 0; i < 48; i++)

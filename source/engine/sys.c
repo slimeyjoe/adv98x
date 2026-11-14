@@ -7,6 +7,7 @@
 #include <string.h>
 #include "ax_internal.h"
 #include "gfx/gfx.h"
+#include "gfx/cursor.h"
 
 struct ax_state ax;
 
@@ -228,9 +229,12 @@ static void present(void)
 {
     struct ax_rect *d = &ax.dirty[ax.display_page];
     gfx_update_dac();
+    cursor_apply(ax.display_page);
     ax.hal->video_present(&ax.page[ax.display_page], d, ax.page_switched, 0, ax.dac,
                           ax.graphics_on);
     ax_rect_clear(d);
+    /* after the clear: the restored bytes are dirty for the next present */
+    cursor_restore(ax.display_page);
     ax.page_switched = 0;
 }
 

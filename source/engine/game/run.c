@@ -6,6 +6,7 @@
 #include "gfx/gfx.h"
 #include "gfx/gpc.h"
 #include "text/font.h"
+#include "gfx/cursor.h"
 #include "vm/mes.h"
 #include "mod/mod.h"
 
@@ -153,6 +154,7 @@ int ax_run(const struct ax_hal *hal, const struct ax_config *cfg)
     gfx_init();
     bios_init();
     font_init();
+    cursor_init();
     vc = cfg->video;
     if (!vc.title)
         vc.title = ax.profile.title;
@@ -169,6 +171,7 @@ int ax_run(const struct ax_hal *hal, const struct ax_config *cfg)
 
     sys_trace(AX_TR_QUIT, 0, 0, rc, 0, 0, 0);
     hal->video_close();
+    cursor_shutdown();
     font_shutdown();
     gfx_shutdown();
     xpak_close(&ax.pak);
