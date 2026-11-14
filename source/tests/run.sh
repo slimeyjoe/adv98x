@@ -3,8 +3,11 @@
 # Run the conformance tests. $1 = the build directory (../build/host), holding tests/ and the
 # engine. The data-free tests run first; the ones that need the imported game (make data) or
 # the pack (make pack) are skipped with a note when those are missing.
+# $2 = e2e: instead, play every story and ending through the engine and the original
+# interpreter and compare (check_vm.py's routes; long).
 set -u
 BUILD=${1:-../build/host}
+MODE=${2:-}
 BIN=$BUILD/tests
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
@@ -22,6 +25,19 @@ run() {
     echo "== $*"
     "$@" || rc=1
 }
+
+if [ "$MODE" = e2e ]; then
+    if [ -x "$EMU_PY" ] && "$EMU_PY" -c 'import unicorn' 2>/dev/null && [ -f "$PAK" ] &&
+       [ -f "$ROOT/resources/derived/exe/NV.OVL" ]; then
+        run "$EMU_PY" -I "$HERE/check_vm.py" "$BIN/test_vm" "$PAK" "$ORIGINAL" "$FONTS" \
+            route1 route2a route2b route2c route3 route1_en route2a_en route2b_en route2c_en route3_en
+    else
+        echo "e2e: needs a Python with unicorn (EMU_PYTHON), $PAK and the unpacked NV.OVL"
+        rc=1
+    fi
+    if [ $rc -eq 0 ]; then echo "E2E PASSED"; else echo "E2E FAILED"; fi
+    exit $rc
+fi
 
 skip() {
     echo "== $1: skipped ($2)"
@@ -61,6 +77,13 @@ if [ -n "$HAVE_GAME" ] && [ -f "$PAK" ]; then
         $PY -I -c 'import sys,wave,struct; w=wave.open(sys.argv[1]); n=w.getnframes(); d=struct.unpack("<%dh"%n,w.readframes(n)); p=max(abs(x) for x in d); print("render: %d frames at %d Hz, peak %d" % (n, w.getframerate(), p)); sys.exit(0 if p > 1000 and n > 3*w.getframerate() else 1)' "$BIN/nv01.wav" || rc=1
     run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" ja
     run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" en
+    # the SDL3 backend's presentation, offscreen (when it is built: make TARGET=sdl3)
+    SDL3=${SDL3_EXE:-$ROOT/build/sdl3/adv98x}
+    if [ -x "$SDL3" ]; then
+        run $PY -I "$HERE/e2e/present.py" "$SDL3" "$PAK"
+    else
+        skip present "needs the SDL3 build ($SDL3)"
+    fi
 else
     skip check_run "needs the game and $PAK"
 fi

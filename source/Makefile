@@ -47,7 +47,7 @@ Q := @
 endif
 
 .DEFAULT_GOAL := all
-.PHONY: all clean test
+.PHONY: all clean test e2e
 .SECONDARY:
 
 all: $(EXE)
@@ -87,6 +87,11 @@ $(BUILD)/tests/%$(EXESUF): $(BUILD)/tests/%.o $(ENGINE_OBJS)
 
 test: $(TEST_EXES) $(EXE)
 	$(Q)tests/run.sh $(BUILD)
+
+# the whole stories against the original interpreter (tests/check_vm.py ROUTES): every ending,
+# both languages; long (5-12 CPU minutes per route under emulation, run in parallel)
+e2e: $(TEST_EXES) $(EXE)
+	$(Q)tests/run.sh $(BUILD) e2e
 
 # ---------------------------------------------------------------------------------------------
 # The game's data (../docs/game-data.md), which the repository does not carry.

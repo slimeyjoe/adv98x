@@ -23,6 +23,14 @@ Besides the game's own scripts, SYNTHETIC scenarios run test scripts assembled h
 place of RUN.MES on both sides) to exercise what NOVA reaches only late in the game (PALCH,
 WHITEH).
 
+ROUTES play a whole story (`make e2e`, not in the default run: 5-12 CPU minutes each under
+emulation). The input comes from the exploring player of tests/e2e/explore.py run on the engine
+(adv98x next to the test programs) with the story choices fixed per route, recorded as keys and
+clicks; both sides then replay it from RUN.MES until the game writes the story's unlock file
+(FLAG3/4/5; END loops for ever after it), where the state is compared as above. The route must
+pass through the script that sets the ending's flag (script-catalog.md §5, §8).
+
+Scenarios run in parallel (CHECK_VM_JOBS, default: the number of CPUs).
 CHECK_VM_OUT=DIR writes both screens of a failing scenario there as PNG.
 
 Input is the PC-98 keyboard: a key is accepted only while the game waits for one. The dumped
@@ -39,7 +47,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.path.join(ROOT, 're-tools'))
 
-RET, DOWN = (0x1C, 0x0D), (0x3D, 0x00)
+RET, DOWN, RIGHT = (0x1C, 0x0D), (0x3D, 0x00), (0x3C, 0x00)
 RET_TO_CLICK = ('ret*',)          # Return at every key wait up to the next click-map wait
 DUMP_SAVES = ['FLAG0', 'FLAG1', 'FLAG2', 'FLAG3', 'FLAG4', 'FLAG5', 'NAME.DEF']
 
@@ -63,6 +71,13 @@ SCENARIOS = {
                   + [RET] * 30),
     'sound': ('ja', DUMP_SAVES, [DOWN] * 4 + [RET] + [DOWN, RET, DOWN, DOWN, RET]),
     'graphic': ('ja', DUMP_SAVES, [DOWN] * 5 + [RET] + [RET] * 12),
+    # Sound mode (script-catalog.md §9): every song (verb 0, nouns 0-15), every effect (verb 1,
+    # nouns 0-10); a key wait follows each choice
+    'sound_all': ('ja', DUMP_SAVES, [DOWN] * 4 + [RET]
+                  + [k for n in range(16) for k in [RET] + [RIGHT] * n + [RET, RET]]
+                  + [k for n in range(11) for k in [RIGHT, RET] + [RIGHT] * n + [RET, RET]]),
+    # Graphic mode: the 45 screens by key (verb 0), then automatically (verb 1, delay 100)
+    'graphic_all': ('ja', DUMP_SAVES, [DOWN] * 5 + [RET] + [RET] + [RET] * 45 + [RIGHT, RET]),
     'continue_en': ('en', DUMP_SAVES, [DOWN] * 3 + [RET, RET] + [RET] * 40),
 }
 
@@ -137,6 +152,21 @@ SYNTHETIC = {
     'whiteh': ('ja', [], [], whiteh_script),
 }
 
+# the 2nd story's endings by design (script-catalog.md §5): L is the sum of the scored choices
+L_MAX = ['NOVA2=0', '2D21=1', 'CAP=0', '2CLD=0', 'YUKA2=0', '2LEM=0', '2MAL=1']    # L = 8 -> 2A
+L_MIN = ['NOVA2=1', '2D21=0', 'CAP=1', '2CLD=1', 'YUKA2=1', '2LEM=1', '2MAL=1']    # L = 0 -> 2C
+# name: (language, save files from the dump, title menu item, menu choices, unlock file written,
+#        the script that sets the ending's flag)
+ROUTES = {}
+for _l, _sfx in (('ja', ''), ('en', '_en')):
+    ROUTES.update({
+        'route1' + _sfx: (_l, [], 0, [], 'FLAG3', 'S025'),
+        'route2a' + _sfx: (_l, ['FLAG3'], 1, L_MAX, 'FLAG4', 'RO04'),
+        'route2b' + _sfx: (_l, ['FLAG3'], 1, ['2MAL=0'], 'FLAG4', 'HHMAL'),       # R217
+        'route2c' + _sfx: (_l, ['FLAG3'], 1, L_MIN, 'FLAG4', 'RO04B'),
+        'route3' + _sfx: (_l, ['FLAG3', 'FLAG4'], 2, [], 'FLAG5', '3H'),
+    })
+
 RANGES = [(0x0000, 0x0100), (0x9000, 0xC000), (0xC006, 0xD006), (0xD006, 0xD8C0), (0xD937, 0xD959),
           (0xD9E3, 0xDB00), (0xDB20, 0xDC20)]
 
@@ -156,14 +186,14 @@ def original_files(original, lang):
     return files
 
 
-def run_reference(original, fonts, lang, saves, keys, script=None):
+def run_reference(original, fonts, lang, saves, keys, script=None, stop=None):
     import nvovl_emu
     storage = {s: open(os.path.join(original, 'pc98', 'A', s), 'rb').read() for s in saves}
     files = original_files(original, lang)
     if script:
         files['RUN.MES'] = script
-    emu = nvovl_emu.NvOvlEmu(files, fonts=fonts, keys=list(keys), storage=storage)
-    r = emu.run('\\MES\\RUN.MES')
+    emu = nvovl_emu.NvOvlEmu(files, fonts=fonts, keys=list(keys), storage=storage, stop_save=stop)
+    r = emu.run('\\MES\\RUN.MES', count=100_000_000_000 if stop else 400_000_000)
     written = {k: v for k, v in r['storage'].items() if storage.get(k) != v}
     return dict(end=r['end'], mem=r['mem'], planes=r['planes'], pointer=r['pointer_planes'],
                 palette_log=r['palette_log'], tvram=r['tvram'],
@@ -187,7 +217,26 @@ def script_pack(pak, script):
     return path
 
 
-def run_engine(exe, pak, original, lang, saves, keys, script=None):
+def route_keys(exe, pak, original, name):
+    """the route's input: the exploring player on the engine, recorded"""
+    lang, saves, title, choose, unlock, via = ROUTES[name]
+    d = tempfile.mkdtemp(prefix='adv98x-route-')
+    for s in saves:
+        open(os.path.join(d, s), 'wb').write(open(os.path.join(original, 'pc98', 'A', s), 'rb').read())
+    rec, route = os.path.join(d, 'keys.json'), os.path.join(d, 'route.txt')
+    cmd = [sys.executable, '-I', os.path.join(HERE, 'e2e', 'explore.py'), exe, pak, original,
+           '--lang', lang, '--storage', d, '--until-save', unlock, '--title-pick', str(title),
+           '--frames', '600000', '--record', rec, '--route-file', route]
+    for c in choose:
+        cmd += ['--choose', c]
+    subprocess.run(cmd, check=True, capture_output=True)
+    if via not in open(route).read().split():
+        raise RuntimeError('%s: the route does not pass through %s' % (name, via))
+    import json
+    return [tuple(k) for k in json.load(open(rec))]
+
+
+def run_engine(exe, pak, original, lang, saves, keys, script=None, stop=None):
     if script:
         pak = script_pack(pak, script)
     d = tempfile.mkdtemp(prefix='adv98x-vm-')
@@ -198,7 +247,10 @@ def run_engine(exe, pak, original, lang, saves, keys, script=None):
         before[s] = data
     keystr = ','.join('C:%d:%d' % k[1:] if k[0] == 'click' else 'R*' if k[0] == 'ret*' else
                       '%02X%02X' % k for k in keys) or '-'
-    out = subprocess.run([exe, pak, d, lang, keystr], capture_output=True, text=True).stdout
+    env = dict(os.environ)
+    if stop:
+        env['TEST_VM_STOP_SAVE'] = stop
+    out = subprocess.run([exe, pak, d, lang, keystr], capture_output=True, text=True, env=env).stdout
     r = dict(sound=[], planes=[], pointer=None, palette_log=[])
     for line in out.splitlines():
         k, _, v = line.partition(' ')
@@ -295,17 +347,28 @@ def main():
     except ImportError:
         print('check_vm: skipped (no unicorn in this Python)')
         return 0
-    ok = True
+    adv98x = os.path.join(os.path.dirname(os.path.abspath(exe)), '..', 'adv98x')
+    jobs = []
     for name in names:
+        script = stop = None
         if name in SYNTHETIC:
             lang, saves, keys, make = SYNTHETIC[name]
             script = make()
+        elif name in ROUTES:
+            lang, saves, stop = ROUTES[name][0], ROUTES[name][1], ROUTES[name][4]
+            keys = route_keys(adv98x, pak, original, name)
         else:
             lang, saves, keys = SCENARIOS[name]
-            script = None
-        ref = run_reference(original, fonts, lang, saves, keys, script)
-        got = run_engine(exe, pak, original, lang, saves, keys, script)
-        ok &= compare(name, got, ref)
+        jobs.append((name, (lang, saves, keys, script, stop)))
+    import concurrent.futures
+    n = int(os.environ.get('CHECK_VM_JOBS', 0)) or os.cpu_count() or 1
+    ok = True
+    with concurrent.futures.ProcessPoolExecutor(max_workers=min(n, len(jobs))) as pool:
+        refs = [pool.submit(run_reference, original, fonts, *args) for _, args in jobs]
+        for (name, args), ref in zip(jobs, refs):
+            got = run_engine(exe, pak, original, *args)
+            ok &= compare(name, got, ref.result())
+            sys.stdout.flush()
     print('check_vm: %d scenarios: %s' % (len(names), 'OK' if ok else 'FAILED'))
     return 0 if ok else 1
 

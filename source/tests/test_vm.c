@@ -2,8 +2,9 @@
 /* test_vm PAK STORAGE LANG KEYS: the whole engine on a pack, input from KEYS (comma-separated
  * hex words SSCC: PC-98 scan code and character, "-" for none). A key is given only while the
  * engine waits for input; when it waits and no key is left, or when the game ends, the state is
- * printed and the program exits:
- *   end exit|starved
+ * printed and the program exits (also, with TEST_VM_STOP_SAVE=NAME, right after the game writes
+ * the record NAME: END writes its unlock file and then loops for ever):
+ *   end exit|starved|save
  *   frames N
  *   mem <hex of the interpreter's 64 KB>
  *   plane <hex> (x4, page 0)
@@ -20,13 +21,13 @@
 #include "gfx/textlayer.h"
 
 static const char *g_storage;
-static unsigned g_keys[256];                  /* SSCC, or 0x10000000 | x << 12 | y for a click */
+static unsigned g_keys[8192];                 /* SSCC, or 0x10000000 | x << 12 | y for a click */
 static int g_nkeys, g_next;
 static int g_in_wait, g_wait_polls, g_wait_kind;
 static uint32_t g_frames;
-static char g_sound[64][80];
+static char g_sound[1024][80];
 static int g_nsound;
-static char g_pal[512][100];
+static char g_pal[2048][100];
 static int g_npal;
 
 static void dump(const char *why)
@@ -73,6 +74,11 @@ static void tv_trace(const struct ax_trace_event *ev)
         dump("exit");
         exit(0);
     }
+    if (ev->kind == AX_TR_SAVE && ev->name && getenv("TEST_VM_STOP_SAVE") &&
+        !strcmp(ev->name, getenv("TEST_VM_STOP_SAVE"))) {
+        dump("save");
+        exit(0);
+    }
     if (getenv("TEST_VM_DEBUG") && (ev->kind == AX_TR_MENU_SEL || ev->kind == AX_TR_SCRIPT ||
                                     (ev->kind == AX_TR_WAIT && ev->a0 != AX_WAIT_TICKS)))
         fprintf(stderr, "ev %d %s a %d %d %d frame %lu\n", ev->kind, ev->name ? ev->name : "", ev->a0,
@@ -82,7 +88,7 @@ static void tv_trace(const struct ax_trace_event *ev)
         g_wait_kind = ev->a0;
         g_wait_polls = 0;
     }
-    if (ev->kind == AX_TR_PALETTE && ev->name && g_npal < 512) {
+    if (ev->kind == AX_TR_PALETTE && ev->name && g_npal < 2048) {
         int k, n = 0;
         char *o = g_pal[g_npal++];
         if (ev->name[0] == 's')
@@ -92,7 +98,7 @@ static void tv_trace(const struct ax_trace_event *ev)
         for (k = ev->name[0] == 's' ? 0 : 1; k < (ev->name[0] == 's' ? 16 : 2); k++)
             n += snprintf(o + n, (size_t)(100 - n), " %03X", ev->ints[k]);
     }
-    if (ev->kind == AX_TR_SOUND && g_nsound < 64) {
+    if (ev->kind == AX_TR_SOUND && g_nsound < 1024) {
         if (ev->name)
             snprintf(g_sound[g_nsound++], 80, "%d %s", ev->a0, ev->name);
         else if (ev->a0 == 0x03 || ev->a0 == 0x04 || ev->a0 == 0x07 || ev->a0 == 0x11)
@@ -197,7 +203,7 @@ int main(int argc, char **argv)
         return 2;
     }
     g_storage = argv[2];
-    for (k = strtok(argv[4], ","); k && g_nkeys < 256; k = strtok(0, ","))
+    for (k = strtok(argv[4], ","); k && g_nkeys < 8192; k = strtok(0, ","))
         if (!strcmp(k, "R*")) {
             g_keys[g_nkeys++] = 0x20000000u;
         } else if (k[0] == 'C') {

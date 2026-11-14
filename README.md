@@ -10,10 +10,11 @@ implementation plan and its status are in [`docs/engine-plan.md`](docs/engine-pl
 
 **Status:** the game plays through, in Japanese and English: the original scripts with pictures,
 text, palette effects, menus, click maps, saves, name entry and the FM music. Verified against
-the original interpreter and AdvBIOS running under emulation, and played headless through all
-three stories; not yet tuned by ear and eye (music balance, timing feel). Still missing: features
-NOVA does not use (animation cells, beeper, the STOP-key quit prompt) and the release polish
-(docs/engine-plan.md, M6–M7).
+the original interpreter and AdvBIOS running under emulation: every story and all five endings,
+in both languages, play to the same memory, screen, saves and sound calls as the original
+(`make TARGET=host e2e`). Not yet tuned by ear and eye (music balance, timing feel). Still
+missing: features NOVA does not use (animation cells, beeper, the STOP-key quit prompt) and the
+release polish (docs/engine-plan.md, M7).
 
 ## You need the game
 

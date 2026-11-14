@@ -2,9 +2,9 @@
 
 The implementation plan, approved 2026-11-14. Status: research (phase 1) complete, housekeeping
 before M0 done, **M0–M4 done** (2026-11-14); M5 mostly done (left: animation cells, beeper
-sound, STOP-key prompt — none used by NOVA); M6 started: all three stories play to their
-endings headless in both languages. Next: M6's route coverage (the three 2nd-story endings by
-design, golden screens, SDL3 presentation run), then M7. Update the status line and tick milestones here as
+sound, STOP-key prompt — none used by NOVA); **M6 done** (2026-11-14): every story and ending,
+both languages, played through the engine and the original interpreter with identical results
+(`make TARGET=host e2e`). Next: M7. Update the status line and tick milestones here as
 they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
@@ -213,7 +213,7 @@ arithmetic and frame counts), ACTE1's remaining commands, scroll, curtain, anima
 lip-sync, beeper (`F1h 04–06`, per-character beep), quit prompt. *Tests:* palette sequences against
 the emulated plug-in runs (`re-tools/tcmtool.py run`), `NAME.DEF` bytes for scripted key input.
 
-**M6 — End to end.** e2e scenarios played headless on the null backend for both languages: 1st
+**M6 — End to end.** ✔ e2e scenarios played headless on the null backend for both languages: 1st
 story to its ending, the three 2nd-story endings (R217 route, L ≥ 5, else), the 3rd story, the
 unlock chain (a fresh storage shows only "start"; after `END` writes `FLAG3`/`FLAG4`/`FLAG5` the
 menu entries appear), Sound and Graphic modes; golden screen hashes at fixed points; an SDL3
@@ -231,7 +231,8 @@ family backends, Polish translation tooling, public-release cleanup.
   pack build (fails loudly on anything missing).
 - `make TARGET=host test` — all unit and conformance tests above; every one compares against data
   produced from the original code or the verified Python tools, not against the engine itself.
-- `make TARGET=host e2e` — headless play of every route in both languages with golden hashes.
+- `make TARGET=host e2e` — headless play of every route in both languages, compared with the
+  original interpreter under emulation (about 15 minutes).
 - `make TARGET=sdl3 && ../build/sdl3/adv98x --pak ../build/nova.pak [--lang en]` — manual play;
   the user's eyes and ears are the final check on feel (text speed, fades, music balance), with
   DOSBox-X / NP2 runs of the original as the comparison when a doubt needs settling.
@@ -400,7 +401,7 @@ Decisions taken while implementing, where the work refined or departed from the 
 - `adv98x --render-wav OUT --song NAME` (null backend) plays a song through the same path; the
   suite renders 4 s of NV01 as a smoke test. The balance and feel are for the user's ears.
 
-**M6 (2026-11-14, started)**
+**M6 (2026-11-14)**
 
 - `tests/e2e/explore.py` plays headless with an exploring player: Return at waits, menus rotated
   item by item each time the same menu returns (→ steps wrap), click-map regions rotated
@@ -411,5 +412,23 @@ Decisions taken while implementing, where the work refined or departed from the 
 - Found by it: END.MES ends in `｛＠｝`, a loop without any wait; the original spins the CPU
   forever. The engine keeps the loop but lets a frame pass every 1000 empty rounds so the window
   lives and the player can quit.
-- Still to do: the three 2nd-story endings each by design (R217 route, L ≥ 5, else), Sound and
-  Graphic mode runs, golden screen hashes at fixed points, the SDL3 offscreen presentation run.
+- *Routes against the original* (`check_vm.py` ROUTES, `make TARGET=host e2e`): the 1st story,
+  the three 2nd-story endings by design (2B: `2MAL` item 0, R217; 2A: every scored choice, L = 8;
+  2C: none, L = 0; `explore.py --choose SCRIPT=N`) and the 3rd story, in both languages. The
+  exploring player's input on the engine is recorded (`--record`) and replayed from RUN.MES
+  through the engine and through NV.OVL under emulation until the unlock file is written (END
+  loops for ever after it: `TEST_VM_STOP_SAVE` / `stop_save=`); memory, screen with the ending
+  card, DAC, text VRAM, every save written, every sound call and plug-in palette write are
+  identical. The route must pass the script that sets the ending flag. About 5-12 CPU minutes per
+  route under emulation, run in parallel (ten routes: about 15 minutes on eight cores), so not
+  in the default `make test`.
+- *Golden screens* became these comparisons with the original at the end of each route (and at
+  every `check_vm.py` scenario) rather than stored hashes of the engine's own frames, which the
+  test rule excludes.
+- *Sound and Graphic modes* (`check_vm.py` `sound_all`, `graphic_all`): all 16 songs and 11
+  effects chosen in turn (all 27 `.USO` loads), the 45 CG screens by key and then automatically;
+  identical to the original.
+- *SDL3 presentation* (`tests/e2e/present.py`, in `make test` when the SDL3 build exists): the
+  offscreen SDL3 backend in control mode, five window size / scale mode runs, four frames each;
+  the renderer's readback against the engine's frame (destination rectangle per scale mode,
+  black border, exact palette colours ×17 with nearest filtering, flat areas with linear).

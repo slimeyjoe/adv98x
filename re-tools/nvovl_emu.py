@@ -6,7 +6,8 @@ unicorn: the reference for the engine's interpreter tests (needs unicorn).
     emu = NvOvlEmu(files={'T.MES': script_bytes, 'NV01.GPC': ...}, fonts='build/fonts',
                    keys=[(0x1C, 0x0D)], storage={})
     result = emu.run('\\\\MES\\\\T.MES')        # until the program ends or waits with no keys left
-    result: dict(end='exit'|'starved', mem=64 KB of NV.OVL's segment, planes=4 x 32000,
+                                              # (or writes the record named by stop_save=)
+    result: dict(end='exit'|'starved'|'save', mem=64 KB of NV.OVL's segment, planes=4 x 32000,
                  storage={name: bytes}, sound=[(ah, arg), ...], display=[...])
 
 Built on re-tools/advbios_emu.py (AdvBIOS's own INT F1h/F3h/F6h code, GRCG, DAC, kanji ROM).
@@ -57,8 +58,10 @@ class Stop(Exception):
 
 
 class NvOvlEmu(A.AdvBiosEmu):
-    def __init__(self, files, fonts=None, keys=(), storage=None, ovl=OVL, ov1=A.OV1):
+    def __init__(self, files, fonts=None, keys=(), storage=None, ovl=OVL, ov1=A.OV1,
+                 stop_save=None):
         super().__init__(ov1=ov1, fonts=fonts)
+        self.stop_save = stop_save              # end the run right after this record is written
         self.files = {k.upper(): v for k, v in files.items()}
         self.storage = dict(storage or {})
         self.keys = list(keys)
@@ -305,6 +308,9 @@ class NvOvlEmu(A.AdvBiosEmu):
             self.storage[name] = bytes(uc.mem_read(es * 16 + bx, cx))
             uc.reg_write(X.UC_X86_REG_AX, cx)
             self._cf(uc, False)
+            if name == self.stop_save:
+                self.end = 'save'
+                uc.emu_stop()
             return
         self._cf(uc, False)
 

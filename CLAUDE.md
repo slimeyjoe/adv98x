@@ -35,8 +35,13 @@ C prefix `ax_`/`AX_`, game profile and pack name `nova`). Successor of the Xenon
   original interpreter (`check_vm.py`: scenarios on the game's scripts plus synthetic test
   scripts assembled in the check; memory, screen, DAC, text VRAM, saves, sound and palette calls
   compared). New behaviour gets a `check_vm.py` scenario.
-- `tests/e2e/explore.py` plays headless (rotating menu and map choices); `tests/e2e/stories.sh`
-  plays all three stories and checks the unlock files.
+- `tests/e2e/explore.py` plays headless (rotating menu and map choices, `--choose` fixes story
+  choices, `--record` keeps the input); `tests/e2e/stories.sh` plays all three stories and checks
+  the unlock files; `tests/e2e/present.py` checks the SDL3 backend's rendering offscreen (runs
+  when `make TARGET=sdl3` was built).
+- `make TARGET=host e2e` (about 15 minutes): `check_vm.py`'s routes, every story and ending in
+  both languages played through the engine and the original interpreter, compared at the
+  unlock save.
 - Gotchas: rebuild the test binaries after engine changes (`make TARGET=host test` does, a bare
   `make` does not relink `build/host/tests/*`); restoring a source within the same second as a
   build can leave a stale object (touch it).
