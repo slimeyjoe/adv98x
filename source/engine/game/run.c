@@ -8,6 +8,7 @@
 #include "text/font.h"
 #include "gfx/cursor.h"
 #include "gfx/textlayer.h"
+#include "snd/snd.h"
 #include "vm/mes.h"
 #include "mod/mod.h"
 
@@ -129,9 +130,36 @@ static int run_game(void)
 
 /* ---- the engine --------------------------------------------------------------------------- */
 
-void ax_audio_render(int16_t *pcm, int frames)
+int ax_render_music(const struct ax_hal *hal, const struct ax_config *cfg, const char *name,
+                    double seconds, uint32_t *rate,
+                    void (*sink)(void *ctx, const int16_t *pcm, int frames), void *ctx)
 {
-    memset(pcm, 0, (size_t)frames * sizeof *pcm);
+    static int16_t buf[1024];
+    double left;
+    memset(&ax, 0, sizeof ax);
+    ax.hal = hal;
+    ax.cfg = *cfg;
+    sys_init();
+    if (xpak_open(&ax.pak, hal) != 0)
+        return 1;
+    bios_init();
+    snd_init();
+    *rate = snd_rate();
+    if (!*rate) {
+        xpak_close(&ax.pak);
+        return 1;
+    }
+    snd_stop();
+    snd_load_play(name);
+    snd_play();
+    for (left = seconds * *rate; left > 0; left -= 1024) {
+        int n = left < 1024 ? (int)left : 1024;
+        ax_audio_render(buf, n);
+        sink(ctx, buf, n);
+    }
+    snd_shutdown();
+    xpak_close(&ax.pak);
+    return 0;
 }
 
 int ax_run(const struct ax_hal *hal, const struct ax_config *cfg)
@@ -157,6 +185,7 @@ int ax_run(const struct ax_hal *hal, const struct ax_config *cfg)
     font_init();
     cursor_init();
     tl_init();
+    snd_init();
     vc = cfg->video;
     if (!vc.title)
         vc.title = ax.profile.title;
@@ -172,6 +201,7 @@ int ax_run(const struct ax_hal *hal, const struct ax_config *cfg)
     }
 
     sys_trace(AX_TR_QUIT, 0, 0, rc, 0, 0, 0);
+    snd_shutdown();
     hal->video_close();
     cursor_shutdown();
     font_shutdown();

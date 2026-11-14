@@ -48,12 +48,19 @@ fi
 if [ -n "$HAVE_GAME" ]; then
     run $PY -I "$HERE/check_gpc.py" "$BIN/test_gpc" "$ORIGINAL"
     run $PY -I "$HERE/check_mes.py" "$BIN/test_mes" "$ORIGINAL"
+    run $PY -I "$HERE/check_usd.py" "$BIN/test_usd" "$ORIGINAL"
 else
     skip "check_gpc, check_mes" "need the game"
 fi
 if [ -n "$HAVE_GAME" ] && [ -f "$PAK" ]; then
     run $PY -I "$HERE/check_run.py" "$BUILD/adv98x" "$PAK" "$ORIGINAL" --lang ja --frames 40000
     run $PY -I "$HERE/check_run.py" "$BUILD/adv98x" "$PAK" "$ORIGINAL" --lang en --frames 40000
+    # the sound path end to end (service call, sequencer, OPN core): a song is heard
+    echo "== render smoke: NV01 through the game's sound path"
+    "$BUILD/adv98x" --pak "$PAK" --render-wav "$BIN/nv01.wav" --song NV01 --seconds 4 2>/dev/null &&
+        $PY -I -c 'import sys,wave,struct; w=wave.open(sys.argv[1]); n=w.getnframes(); d=struct.unpack("<%dh"%n,w.readframes(n)); p=max(abs(x) for x in d); print("render: %d frames at %d Hz, peak %d" % (n, w.getframerate(), p)); sys.exit(0 if p > 1000 and n > 3*w.getframerate() else 1)' "$BIN/nv01.wav" || rc=1
+    run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" ja
+    run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" en
 else
     skip check_run "needs the game and $PAK"
 fi

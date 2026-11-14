@@ -9,6 +9,7 @@
 #include "gfx/gfx.h"
 #include "gfx/cursor.h"
 #include "gfx/textlayer.h"
+#include "snd/snd.h"
 
 struct ax_state ax;
 
@@ -269,6 +270,7 @@ void sys_frame_wait(void)
     }
     for (i = 0; i < ax.nframe_hooks; i++)
         ax.frame_hooks[i]();
+    snd_pump();
     present();
     ax.hal->frame_wait();
     advance_time();

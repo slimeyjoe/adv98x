@@ -214,6 +214,7 @@ int bios_load_clickmap(const char *name)
     uint8_t f[0x7D5];
     long n = bios_file_read(name, f, sizeof f);
     unsigned need, bl, cl, bh, ch, i;
+    sys_trace(AX_TR_LOAD, name, 0, -1, (int)n, 0, 0);     /* a0 = -1: a click map */
     uint8_t *map = &ax.bios.clickmap[0][0];
     if (n < 5 || f[0] != 0)
         return -1;

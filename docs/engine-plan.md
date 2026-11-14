@@ -1,8 +1,10 @@
 # Adv98X — a new engine for Adv98V 1.70.54 games (first game: NOVA)
 
 The implementation plan, approved 2026-11-14. Status: research (phase 1) complete, housekeeping
-before M0 done, **M0–M3 done** (2026-11-14); M4 (music) in progress; M5 mostly done (left: animation cells,
-beeper sound, STOP-key prompt — none used by NOVA). Update the status line and tick milestones here as
+before M0 done, **M0–M4 done** (2026-11-14); M5 mostly done (left: animation cells, beeper
+sound, STOP-key prompt — none used by NOVA); M6 started: all three stories play to their
+endings headless in both languages. Next: M6's route coverage (the three 2nd-story endings by
+design, golden screens, SDL3 presentation run), then M7. Update the status line and tick milestones here as
 they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
@@ -199,7 +201,7 @@ messages, `name-load`, storage. *Tests:* menu unit tests (item rectangles, key n
 items keep their index); save round-trip incl. loading an original `FLAG0` from the dump (allowed as
 a test input when present, never packed); e2e: new game → first map → save → quit → continue.
 
-**M4 — Music.** `opn_timers.c`, `usd_seq.c`, `bios_snd.c`, `snd_api.c`, the `sound` opcode with the
+**M4 — Music.** ✔ `opn_timers.c`, `usd_seq.c`, `bios_snd.c`, `snd_api.c`, the `sound` opcode with the
 original semantics (load ≠ play, fixed-rate fades that do not stop the song, FM volume only at
 note-on, restart rules). *Tests:* `test_usd` compares the C sequencer's register stream with the
 reference recordings of `re-tools/usdemu.py` for all 28 files in the play / fade / stop / chained
@@ -378,3 +380,36 @@ Decisions taken while implementing, where the work refined or departed from the 
 - *Left for later (not used by NOVA):* animation cells and lip-sync (C1–C5, INT F3h AH=08h–0Fh),
   the beeper's sound (character beep, pitch), the STOP-key quit prompt (the host's window close
   quits at once), ACTE1 page commands checked on two pages (the harness has one VRAM page).
+
+**M4 (2026-11-14)**
+
+- *The sequencer* `snd/usd.c` is a function-by-function C port of `re-tools/usdmodel.py`,
+  including the model's two YM2203 timers (so Xenon's `pmd_seq.c` timer scheduler was not
+  needed: the verified model already is the timer). `check_usd.py` compares it with the model on
+  151 scenarios (play, fades, chained songs, timer phases, 400 synthetic songs) and with the
+  original driver's 28 recordings: 7.36 M register writes, identical. (Written by a delegated
+  agent against a fixed interface; `gamedata.py derive` now also writes the recordings' `.tsv`
+  logs the check reads.)
+- *Output* (`snd/snd.c`): the sequencer runs in sample time from the backend's audio thread (pull
+  mode) or the frame (push); its writes are stamped with OPN clocks, mapped to output samples
+  with exact 64-bit arithmetic and applied at least one chip sample apart. The core is ymfm (Xenon's
+  wrapper, 55 467 Hz, the host resamples); `opn_lite` is in the tree for the Amiga later.
+  AdvBIOS's start-up register writes go to the core at init (the model starts after them).
+- *INT F4h* (`bios/bios_snd.c`) maps the services onto the model; `sound "file"` = stop + load,
+  `sound 1` = play, fades at the driver's fixed rate.
+- `adv98x --render-wav OUT --song NAME` (null backend) plays a song through the same path; the
+  suite renders 4 s of NV01 as a smoke test. The balance and feel are for the user's ears.
+
+**M6 (2026-11-14, started)**
+
+- `tests/e2e/explore.py` plays headless with an exploring player: Return at waits, menus rotated
+  item by item each time the same menu returns (→ steps wrap), click-map regions rotated
+  (`load` trace events name the click map), name entry with the default. That opens the
+  flag-gated hubs without a hand-written route. `tests/e2e/stories.sh` plays a fresh install
+  through the 1st, 2nd and 3rd story in turn and checks that FLAG3, FLAG4 and FLAG5 are written
+  — both languages, about 40 000 frames per story, 1.4 s in all.
+- Found by it: END.MES ends in `｛＠｝`, a loop without any wait; the original spins the CPU
+  forever. The engine keeps the loop but lets a frame pass every 1000 empty rounds so the window
+  lives and the player can quit.
+- Still to do: the three 2nd-story endings each by design (R217 route, L ≥ 5, else), Sound and
+  Graphic mode runs, golden screen hashes at fixed points, the SDL3 offscreen presentation run.

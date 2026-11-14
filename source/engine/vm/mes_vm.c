@@ -370,7 +370,19 @@ void vm_run(void)
                 continue;
             }
             if (w == 0x8170) {                      /* ｝ */
+                static uint32_t spin_frame, spins;
                 vm_si = vm_rd16(vm_rd16(MES_SUB_ACTIVE) ? MES_LOOP_SUB : MES_LOOP_MAIN);
+                /* a loop that waits for nothing (END.MES ends in `｛＠｝`) spins forever in the
+                 * original; here it lets a frame pass every 1000 rounds, so the window stays
+                 * alive and the player can quit */
+                if (ax.frame != spin_frame) {
+                    spin_frame = ax.frame;
+                    spins = 0;
+                } else if (++spins >= 1000) {
+                    spins = 0;
+                    text_flush();
+                    sys_frame_wait();
+                }
                 continue;
             }
             print(w);

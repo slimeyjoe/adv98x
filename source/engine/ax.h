@@ -18,6 +18,13 @@ struct ax_config {
 /* Run the game (or the viewer) until it quits. Returns the process exit code. */
 int ax_run(const struct ax_hal *hal, const struct ax_config *cfg);
 
+/* Offline: play song `name` (a .USO in the pack) for `seconds` through the sound path the game
+ * uses and give the output to sink(ctx, pcm, frames); *rate receives the sample rate. Needs only
+ * the pack, memory, audio_open and log parts of the HAL. Returns 0 on success. */
+int ax_render_music(const struct ax_hal *hal, const struct ax_config *cfg, const char *name,
+                    double seconds, uint32_t *rate,
+                    void (*sink)(void *ctx, const int16_t *pcm, int frames), void *ctx);
+
 /* Pull-mode audio (ax_hal.h): render `frames` mono 16-bit samples at the rate audio_open
  * accepted. Called by the backend from its audio thread/interrupt; takes audio_lock. */
 void ax_audio_render(int16_t *pcm, int frames);

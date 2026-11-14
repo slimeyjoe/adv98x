@@ -19,7 +19,7 @@ derive: everything the documents and tests refer to, made from resources/origina
              mesgraph.py)                                        -> derived/scripts[-en]/
     images   every GPC as PNG (gpc.py)                           -> derived/images/gpc/
     listing  annotated listings of the plug-ins (tcmtool.py)     -> derived/listing/
-    vgm      reference recordings of all songs from the original driver under emulation
+    vgm      reference recordings (VGM and register-write logs) of all songs from the original driver under emulation
              (usdemu.py; needs unicorn: --python names a Python that has it)
                                                                  -> derived/music/vgm/
   Default: all parts; a part whose Python module is missing is skipped with a note.
@@ -262,7 +262,7 @@ def cmd_derive(a):
             if not os.path.exists(os.path.join(der, 'exe', 'NV.OV1')):
                 print('  skipped: derive exe first')
                 continue
-            ok &= run(py, os.path.join(retools, 'usdemu.py'), '--all')
+            ok &= run(py, os.path.join(retools, 'usdemu.py'), '--all', '--logs')
         else:
             sys.exit('gamedata: unknown part %s (parts: %s)' % (part, ' '.join(DERIVE_PARTS)))
     return 0 if ok else 1
