@@ -1,7 +1,8 @@
 # Adv98X — a new engine for Adv98V 1.70.54 games (first game: NOVA)
 
 The implementation plan, approved 2026-11-14. Status: research (phase 1) complete, housekeeping
-before M0 done, **M0–M3 done** (2026-11-14); M4 (music) next. The new-game e2e of M3 waits for INPUTNAM (M5). Update the status line and tick milestones here as
+before M0 done, **M0–M3 done** (2026-11-14); M4 (music) in progress; M5 mostly done (left: animation cells,
+beeper sound, STOP-key prompt — none used by NOVA). Update the status line and tick milestones here as
 they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
@@ -356,3 +357,24 @@ Decisions taken while implementing, where the work refined or departed from the 
   driver draws into VRAM. The SDL3 backend hides the host cursor.
 - *Owed to M5:* the new-game path (name entry through INPUTNAM); scenarios `story2`/`story3` are
   ready in `check_vm.py` (`AFTER_M5`) and run once INPUTNAM exists.
+
+**M5 (2026-11-14, mostly)**
+
+- *Done, each checked against the original code:* INPUTNAM (new-game, 2nd and 3rd story starts in
+  `check_vm.py`: NAME.DEF and screen identical, with typed kana, dakuten, handakuten and
+  backspace), PALCH and WHITEH (synthetic `check_vm.py` scenarios: every palette write identical
+  to the real plug-ins'), ACTE1's remaining commands (synthetic scenario, page 0 only), the
+  text-layer curtain (text VRAM identical after cover/uncover), scrolling (`check_text.py`
+  against AdvBIOS: window and rectangle, four directions).
+- *Synthetic scenarios.* `check_vm.py` assembles small test scripts (`op()`, `num()`) that run
+  in place of RUN.MES on both sides; the harness now delivers the VSYNC interrupt the plug-ins
+  hook (between instruction slices, as `tcmtool.py` does) and provides DOS vector get/set.
+- *Text layer.* The HAL has no text plane: covered curtain cells are drawn into the presented
+  frame in the palette entry nearest to the text colour — exact for NOVA's one use (white over an
+  all-white palette), an approximation in general. Restart's uncover of the whole text layer
+  (F6h AX=0FFFh) is done too, with its 31 frames.
+- *Kana input.* The SDL3 backend has a KANA lock (the JIS keyboard's Kana key or Scroll Lock)
+  giving the JIS kana layout's half-width kana, which INPUTNAM takes as hiragana.
+- *Left for later (not used by NOVA):* animation cells and lip-sync (C1–C5, INT F3h AH=08h–0Fh),
+  the beeper's sound (character beep, pitch), the STOP-key quit prompt (the host's window close
+  quits at once), ACTE1 page commands checked on two pages (the harness has one VRAM page).
