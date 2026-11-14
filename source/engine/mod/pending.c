@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* PALCH, WHITEH and INPUTNAM (docs/re/plugins.md §3-5) arrive with milestone M5; until then a
+/* PALCH and WHITEH (docs/re/plugins.md §3-5) arrive with milestone M5; until then a
  * call is logged and does nothing. */
 #include "ax_internal.h"
 #include "mod/mod.h"
@@ -12,8 +12,6 @@ static unsigned long later(const char *name)
 
 static unsigned long palch_exec(const uint16_t *a, int n) { (void)a; (void)n; return later("PALCH"); }
 static unsigned long whiteh_exec(const uint16_t *a, int n) { (void)a; (void)n; return later("WHITEH"); }
-static unsigned long inputnam_exec(const uint16_t *a, int n) { (void)a; (void)n; return later("INPUTNAM"); }
 
 const struct ax_module mod_palch = { "PALCH", 0, palch_exec };
 const struct ax_module mod_whiteh = { "WHITEH", 0, whiteh_exec };
-const struct ax_module mod_inputnam = { "INPUTNAM", 0, inputnam_exec };

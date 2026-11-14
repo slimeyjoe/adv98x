@@ -42,6 +42,13 @@ SCENARIOS = {
     # title menu (menu2): 3 x down to "continue", Return, file No1 -> flag-load 0
     'continue': ('ja', DUMP_SAVES, [DOWN] * 3 + [RET, RET] + [RET] * 40),
     # "2nd story": an empty noun list selects at once
+    # the 2nd / 3rd story start with name entry: Return alone takes the default name
+    'story2': ('ja', DUMP_SAVES, [DOWN, RET] + [RET] * 40),
+    'story3': ('ja', DUMP_SAVES, [DOWN, DOWN, RET] + [RET] * 40),
+    # a new game on a fresh install; the name typed: a, ｶ, ﾞ, ﾊ, ﾟ, BS, ﾎ, ﾟ, Z, Return
+    'newgame': ('ja', [], [RET, (0x1D, 0x61), (0x24, 0xB6), (0x1A, 0xDE), (0x17, 0xCA),
+                           (0x1B, 0xDF), (0x0E, 0x08), (0x2D, 0xCE), (0x1B, 0xDF),
+                           (0x29, 0x5A), RET] + [RET] * 30),
     # continue, click SAVE on the 2nd-deck map (region 14), file No2 -> flag-save 1
     'save': ('ja', DUMP_SAVES, [DOWN] * 3 + [RET, RET, RET_TO_CLICK, ('click', 550, 243), DOWN, DOWN, RET]
              + [RET] * 10),
@@ -53,11 +60,7 @@ SCENARIOS = {
     'continue_en': ('en', DUMP_SAVES, [DOWN] * 3 + [RET, RET] + [RET] * 40),
 }
 
-# need the INPUTNAM module (milestone M5): the original writes NAME.DEF through it
-AFTER_M5 = {
-    'story2': ('ja', DUMP_SAVES, [DOWN, RET] + [RET] * 40),
-    'story3': ('ja', DUMP_SAVES, [DOWN, DOWN, RET] + [RET] * 40),
-}
+AFTER_M5 = {}
 
 RANGES = [(0x0000, 0x0100), (0x9000, 0xC000), (0xC006, 0xD006), (0xD006, 0xD8C0), (0xD937, 0xD959),
           (0xD9E3, 0xDB00), (0xDB20, 0xDC20)]
