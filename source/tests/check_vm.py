@@ -11,6 +11,7 @@ then these must be identical:
     tables, menu2 buffer, procedure slots), the player's name D937-D958h, the parameter and
     file-name buffers D9E3-DAFFh and the save buffer DB20-DC1Fh. (0100-8FFFh holds the
     plug-ins' code in the original and is not compared; the engine replaces them.)
+  * the text VRAM (A000h-A3FFh: codes and attributes; the curtain);
   * the screen: all four planes of the page, and, where the pointer is shown, the frame with
     the pointer (drawn into VRAM by AdvBIOS's driver, into the presented frame by the engine);
   * the DAC (palette at the current brightness);
@@ -109,7 +110,16 @@ def whiteh_script():
     return s + END
 
 
+def curtain_script():
+    s = SHOW_NV01
+    s += op(0xC6, 0, 0, 159, 99, 7)                # MON01: cover everything in colour 7
+    s += op(0xC6, 20, 10, 100, 60, 15)             # uncover a part
+    s += op(0xC6, 30, 30, 70, 80, 2)               # cover a part in colour 2
+    return s + END
+
+
 SYNTHETIC = {
+    'curtain': ('ja', [], [], curtain_script),
     'palch': ('ja', [], [], palch_script),
     'whiteh': ('ja', [], [], whiteh_script),
 }
@@ -143,7 +153,7 @@ def run_reference(original, fonts, lang, saves, keys, script=None):
     r = emu.run('\\MES\\RUN.MES')
     written = {k: v for k, v in r['storage'].items() if storage.get(k) != v}
     return dict(end=r['end'], mem=r['mem'], planes=r['planes'], pointer=r['pointer_planes'],
-                palette_log=r['palette_log'],
+                palette_log=r['palette_log'], tvram=r['tvram'],
                 dac=[v for rgb in emu.dac for v in rgb], storage=written,
                 sound=['%d %s' % (ah, '-' if a is None else a) for ah, a in r['sound']])
 
@@ -185,6 +195,8 @@ def run_engine(exe, pak, original, lang, saves, keys, script=None):
             r['mem'] = bytes.fromhex(v)
         elif k == 'plane':
             r['planes'].append(bytes.fromhex(v))
+        elif k == 'tvram':
+            r['tvram'] = bytes.fromhex(v)
         elif k == 'pal':
             r['palette_log'].append(v)
         elif k == 'pointer':
@@ -222,6 +234,9 @@ def compare(name, got, ref):
     elif got['pointer'] is not None and got['pointer'] != ref['pointer']:
         n = sum(1 for p in range(4) for a, b in zip(got['pointer'][p], ref['pointer'][p]) if a != b)
         bad.append('the frame with the pointer: %d bytes differ' % n)
+    if got.get('tvram') != ref['tvram']:
+        n = sum(1 for a, b in zip(got.get('tvram') or b'', ref['tvram']) if a != b)
+        bad.append('text VRAM: %d bytes differ' % n)
     if got.get('dac') != ref['dac']:
         bad.append('dac: engine %s, NV.OVL %s' % (got.get('dac'), ref['dac']))
     if got['storage'] != ref['storage']:

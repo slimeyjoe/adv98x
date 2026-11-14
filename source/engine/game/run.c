@@ -7,6 +7,7 @@
 #include "gfx/gpc.h"
 #include "text/font.h"
 #include "gfx/cursor.h"
+#include "gfx/textlayer.h"
 #include "vm/mes.h"
 #include "mod/mod.h"
 
@@ -155,6 +156,7 @@ int ax_run(const struct ax_hal *hal, const struct ax_config *cfg)
     bios_init();
     font_init();
     cursor_init();
+    tl_init();
     vc = cfg->video;
     if (!vc.title)
         vc.title = ax.profile.title;

@@ -345,5 +345,6 @@ class NvOvlEmu(A.AdvBiosEmu):
             self.call(0x33, ax=2)
         return dict(end=self.end, mem=bytes(uc.mem_read(SEG * 16, 0x10000)),
                     planes=self.planes(), pointer_planes=with_pointer,
-                    palette_log=list(self.palette_log), storage=dict(self.storage), sound=list(self.sound),
+                    palette_log=list(self.palette_log),
+                    tvram=bytes(uc.mem_read(0xA0000, 0x4000)), storage=dict(self.storage), sound=list(self.sound),
                     display=list(self.display))

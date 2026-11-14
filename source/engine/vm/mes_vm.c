@@ -8,6 +8,7 @@
 #include "ax_internal.h"
 #include "bios/bios.h"
 #include "gfx/gfx.h"
+#include "gfx/textlayer.h"
 #include "mod/mod.h"
 #include "vm/mes.h"
 
@@ -940,13 +941,14 @@ static void op_anim(unsigned op)
     sys_log(AX_LOG_WARN, "opcode %02X (animation cells): not implemented yet (M5)", op);
 }
 
-static void op_curtain(void)                    /* C6 */
+static void op_curtain(void)                    /* C6: INT F6h AH=0Fh, CH CL DH DL, AL */
 {
     unsigned v[5];
     int i;
     for (i = 0; i < 5; i++)
         vm_get_number(&v[i]);
-    sys_log(AX_LOG_WARN, "curtain %u: not implemented yet (M5)", v[4] & 0xFF);
+    tl_curtain((int)(v[4] & 0xFF), (int)(v[0] & 0xFF), (int)(v[1] & 0xFF), (int)(v[2] & 0xFF),
+               (int)(v[3] & 0xFF));
 }
 
 static void op_save_check(void)                 /* C7 */
@@ -1378,6 +1380,7 @@ void vm_run_game(const char *start)
         sys_fatal("cannot find message file %s", start);
         return;
     }
+    tl_curtain(0xFF, 0, 0, 0x9F, 0x63);  /* restart 0xDCF6: F6h AX=0FFFh, DX=9F63h */
     r = setjmp(top_jb);
     if (r == 0 || r == UNWIND_JUMP) {
         ax.script_name = (const char *)M + MES_NAME;

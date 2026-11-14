@@ -17,6 +17,7 @@
 #include "ax_internal.h"
 #include "hal_file.h"
 #include "gfx/cursor.h"
+#include "gfx/textlayer.h"
 
 static const char *g_storage;
 static unsigned g_keys[256];                  /* SSCC, or 0x10000000 | x << 12 | y for a click */
@@ -51,6 +52,10 @@ static void dump(const char *why)
         }
         cursor_restore(0);
     }
+    printf("tvram ");
+    for (i = 0; i < 0x4000; i++)
+        printf("%02x", tl_vram()[i]);
+    putchar('\n');
     printf("dac");
     for (i = 0; i < 48; i++)
         printf(" %d", ax.dac[i]);
