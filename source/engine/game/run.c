@@ -4,6 +4,7 @@
 #include "ax_internal.h"
 #include "gfx/gfx.h"
 #include "gfx/gpc.h"
+#include "text/font.h"
 
 /* ---- picture viewer (--view): a tool for looking at the pack's pictures as AdvBIOS draws
  * them: the page cleared to colour 0, the picture opaque at its own position, its palette at
@@ -119,6 +120,8 @@ int ax_run(const struct ax_hal *hal, const struct ax_config *cfg)
     ax.pak.lang = (uint8_t)ax.lang;
 
     gfx_init();
+    bios_init();
+    font_init();
     vc = cfg->video;
     if (!vc.title)
         vc.title = ax.profile.title;
@@ -137,6 +140,7 @@ int ax_run(const struct ax_hal *hal, const struct ax_config *cfg)
 
     sys_trace(AX_TR_QUIT, 0, 0, rc, 0, 0, 0);
     hal->video_close();
+    font_shutdown();
     gfx_shutdown();
     xpak_close(&ax.pak);
     return rc;

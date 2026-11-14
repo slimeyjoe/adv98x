@@ -14,6 +14,7 @@
 #include "ax_hal.h"
 #include "gfx/planes.h"
 #include "pack/pack.h"
+#include "bios/bios.h"
 
 /* Time bases (docs/engine-plan.md design point 5): the frame is the PC-98 VSYNC, 56.42 Hz;
  * AdvBIOS's tick is 20 ms. One frame adds AX_TICK_NUM to an accumulator, every AX_TICK_DEN
@@ -53,6 +54,11 @@ struct ax_state {
     int brightness;                     /* 04E9:0042, 0..15 */
     uint8_t dac[48];                    /* what the hardware outputs: 16 x {R,G,B} 0..15 */
     int dac_changed;
+    uint16_t mailbox[16];               /* INT F3h AH=FFh buffer 0290:045C */
+
+    /* AdvBIOS service state (bios/bios.h) */
+    struct ax_bios bios;
+    int beeper_on;
 
     /* input */
     struct ax_input in;                 /* last poll: levels (keymap, buttons) */

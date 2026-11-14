@@ -1,7 +1,7 @@
 # Adv98X — a new engine for Adv98V 1.70.54 games (first game: NOVA)
 
 The implementation plan, approved 2026-11-14. Status: research (phase 1) complete, housekeeping
-before M0 done, **M0 done** (2026-11-14), M1 next. Update the status line and tick milestones here as
+before M0 done, **M0 and M1 done** (2026-11-14), M2 next. Update the status line and tick milestones here as
 they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
@@ -178,7 +178,7 @@ Each milestone ends with its tests passing and a commit; the game is runnable fr
 name), songs, click maps, default name, fonts, profile. The engine opens the pack and a window and
 shows a decoded picture. *Check:* `make TARGET=sdl3 && build/sdl3/adv98x --pak build/nova.pak`.
 
-**M1 — Pictures, palette, text services.** `gpc.c` (C port of the verified decoder: interleave,
+**M1 — Pictures, palette, text services.** ✔ `gpc.c` (C port of the verified decoder: interleave,
 XOR carry-over across chains, opaque/masked put, position override, palette flags), brightness and
 palette services, `bios_text.c` in full, bold, half-width paths. *Tests:* `test_gpc` compares all
 103 distinct GPC files with `source/tools/gpc.py` output; `test_text` compares rendered text cells
@@ -277,3 +277,28 @@ Decisions taken while implementing, where the work refined or departed from the 
 - *Tests* so far: `check_pack.py` (the C reader against `xpak.py`, every packed game file
   against the inventory md5s, nothing "never packed" in the pack) and the presentation smoke
   run.
+
+**M1 (2026-11-14)**
+
+- *Reference for the text and palette services: AdvBIOS itself.* `re-tools/advbios_emu.py` runs
+  NV.OV1's INT F1h/F3h/F6h handlers under unicorn (loaded at 1000h with its relocations, entered
+  directly, DGROUP as initialised), with the GRCG's RMW/TDW writes, the DAC ports and the kanji
+  ROM modelled. `check_text.py` and `check_palette.py` run one scenario through it and through
+  the engine and compare the planes, the cursor, the DAC and the palette buffer at every snap.
+  This replaces the "expected plane patterns" of the plan with the original code; mutations of
+  the bold quirk, line pitch, wrap rule, SJIS conversion and RMW write are all caught.
+- *The kanji ROM model* (`text/font.c` `font_rom_glyph`, the same rule in the harness): JIS rows
+  29h/2Ah are half-width (29xx = byte xx, 2Axx = byte xx + 80h of the 8×16 font), row 2Bh is
+  half-width and blank, everything else 16×16 from `jiskan16`; a missing glyph is blank. The
+  glyph layout is the X11 fonts' (column 0 used), not the ROM's; bold is applied at run time
+  exactly as `MakeCharBold` does.
+- *Scope.* INT F6h AH=01h–0Eh, 12h, 13h and INT F3h AH=01h, 10h–16h, FFh are done; scrolling
+  (AH=10h/11h) and the curtain (AH=0Fh) stay in M5 as planned. Character delays and beeps go
+  through `bios_delay` (INT F1h AH=09h semantics: SHIFT or the right button skips); the beeper
+  sound itself is M5.
+- *Hardware details kept:* 16-bit VRAM offsets (y·80 + x) and 16-bit counts in fills and
+  inversion, writes past the 32000 visible bytes dropped (the original writes off-screen VRAM
+  there); the brightness service waits one frame before programming (its VSYNC wait), AH=15h
+  programs one colour at once with brightness row CL.
+- `check_gpc.py` compares all 103 distinct GPC files with `gpc.py` and the draw semantics
+  (position override, masked mode, rows continuing past column 79, clipping) on a background.
