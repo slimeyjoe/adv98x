@@ -46,11 +46,9 @@ usage in its header. Run them with `python3 -I`; the emulation harnesses need `c
 
 ```sh
 python3 -I source/tools/gamedata.py import PATH/TO/pc-98 PATH/TO/EVE.PCK "PATH/TO/Nova [TL-En by Fuzion].hdi"
-mkdir -p resources/derived/exe
-for f in NV.OVL NV.OV1 INSTH.EXE; do python3 -I re-tools/exeunpack.py resources/original/pc98/A/$f resources/derived/exe/$f; done
-python3 -I re-tools/mesdis.py check  resources/original/pc98/A/MES/*.MES resources/original/pc98/A/NV.INI resources/original/en/MES/*.MES
-python3 -I re-tools/mesdis.py export resources/derived/scripts resources/original/pc98/A/MES/*.MES resources/original/pc98/A/NV.INI
-python3 -I source/tools/gpc.py png resources/original/pc98/*/GPC/*.GPC -o resources/derived/images/gpc
+python3 -I source/tools/gamedata.py derive --python $EMU_PYTHON   # exe scripts images listing vgm
+$EMU_PYTHON re-tools/gpc_verify.py        # pictures against the original decoder and the Windows files
+$EMU_PYTHON re-tools/usdmodel.py --check  # sequencer model against the original driver (about 2 min)
 ```
 
 ## Credits
