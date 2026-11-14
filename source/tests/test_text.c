@@ -6,6 +6,7 @@
  * Scenario lines (numbers decimal, HEX = hex):
  *   window X0 Y0 X1 Y1 | colour C | cursor X Y | bold AL | char DX(HEX) | string HEX-BYTES
  *   fillwin C | fillpage C | fillrect X0 Y0 X1 Y1 C | invert X0 Y0 X1 Y1 | pattern | snap NAME
+ *   scroll DIR STEPS | scrollrect X0 Y0 X1 Y1 DIR STEPS
  * Output per snap: "snap NAME CURX CURY" then four lines, the planes in hex. */
 #include <stdio.h>
 #include <stdlib.h>
@@ -89,6 +90,16 @@ int main(int argc, char **argv)
         } else if (!strcmp(op, "fillpage")) {
             sscanf(line, "%*s %d", &a[0]);
             bt_fill_page(a[0]);
+        } else if (!strcmp(op, "scroll")) {
+            sscanf(line, "%*s %d %d", &a[0], &a[1]);
+            bt_scroll(a[0], (unsigned)a[1]);
+        } else if (!strcmp(op, "scrollrect")) {
+            {
+                int v[6];
+                sscanf(line, "%*s %d %d %d %d %d %d", &v[0], &v[1], &v[2], &v[3], &v[4], &v[5]);
+                r[0] = (uint16_t)v[0]; r[1] = (uint16_t)v[1]; r[2] = (uint16_t)v[2]; r[3] = (uint16_t)v[3];
+                bt_scroll_rect(r, v[4], (unsigned)v[5]);
+            }
         } else if (!strcmp(op, "pattern")) {
             int p, i;
             for (p = 0; p < 4; p++)

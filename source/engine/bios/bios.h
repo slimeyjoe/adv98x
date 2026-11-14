@@ -100,6 +100,8 @@ void bt_fill_window(int c);                         /* AH=0Bh: fill, cursor home
 void bt_fill_page(int c);                           /* AH=0Ch */
 void bt_fill_rect(const uint16_t rect[4], int c);   /* AH=0Dh */
 void bt_invert_rect(const uint16_t rect[4]);        /* AH=0Eh */
+void bt_scroll(int dir, unsigned steps);            /* AH=10h: 0 up 1 down 2 left 3 right */
+void bt_scroll_rect(const uint16_t rect[4], int dir, unsigned steps);   /* AH=11h */
 int  bt_bold(int al);                               /* AH=13h: 0/1 set, >1 get */
 unsigned bios_sjis_to_jis(unsigned dx);             /* 0000:024C, no validation */
 

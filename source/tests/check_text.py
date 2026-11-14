@@ -10,7 +10,7 @@ Needs Python with unicorn ($EMU_PYTHON) and the unpacked NV.OV1
 both sides draw from the same glyph tables through the same kanji-ROM model, so what is
 compared is AdvBIOS's logic: the GRCG writes, line pitch and wrapping, the bold quirk, the
 half-width paths (1-byte codes and the two-byte codes of JIS rows 29h-2Bh), the Shift-JIS
-conversion, control codes, fills, inversion and the window clamping.
+conversion, control codes, fills, inversion, the window clamping and scrolling.
 """
 import os
 import struct
@@ -65,6 +65,10 @@ def scenario():
           'fillrect 79 399 79 399 9', 'snap fills',
           'window 90 500 5 20', 'fillwin 3', 'colour 0', 'string ' + sj('窓の中').hex(),
           'snap clamp']
+    # 7. scrolling: the window and a rectangle, all four directions
+    s += ['pattern', 'window 10 50 40 200', 'scroll 0 7', 'scroll 1 3', 'scroll 2 2',
+          'scroll 3 5', 'snap scroll_window', 'pattern', 'scrollrect 0 0 79 399 0 2',
+          'scrollrect 70 300 79 399 2 4', 'scrollrect 5 5 6 6 3 1', 'snap scroll_rect']
     return s
 
 
@@ -105,6 +109,11 @@ def run_emu(lines, fontdir):
             emu.call(0xF6, ax=0x0B00 | int(a[0]))
         elif op == 'fillpage':
             emu.call(0xF6, ax=0x0C00 | int(a[0]))
+        elif op == 'scroll':
+            emu.call(0xF6, ax=0x1000 | int(a[0]), cx=int(a[1]))
+        elif op == 'scrollrect':
+            rect = struct.pack('<4H', *(int(v) for v in a[:4]))
+            emu.call(0xF6, ax=0x1100 | int(a[4]), cx=int(a[5]), ds_si=rect)
         elif op == 'pattern':
             emu.set_planes([bytes(((i * 7 + p * 29 + (i // 80) * 3) & 0xFF) for i in range(32000))
                             for p in range(4)])

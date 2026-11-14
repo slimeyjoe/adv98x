@@ -325,3 +325,89 @@ void bt_invert_rect(const uint16_t rect[4])
         }
     }
 }
+
+/* ---- scrolling: scroll_dispatch 0000:0EEE, the CPU paths 0FA4 / 102E (advbios.md §5.5) ----- */
+
+static uint8_t vb(int p, unsigned off)
+{
+    off &= 0xFFFF;
+    return off < AX_PLANE_BYTES ? gfx_access()->p[p][off] : 0;
+}
+
+static void vset(int p, unsigned off, uint8_t v)
+{
+    off &= 0xFFFF;
+    if (off < AX_PLANE_BYTES)
+        gfx_access()->p[p][off] = v;
+}
+
+/* one step: AL = 0 up, 1 down (by a line), 2 left, 3 right (by a byte column) */
+static void scroll_step(int dir)
+{
+    unsigned x0 = B.win[0], y0 = B.win[1], x1 = B.win[2], y1 = B.win[3];
+    unsigned rows, w, r, i, si, di;
+    int p, bx;
+    sys_frame_wait();                           /* one VSYNC per step */
+    if (dir == 0 || dir == 1) {
+        rows = (uint16_t)(y1 - y0);
+        w = (uint16_t)(x1 - x0 + 1);
+        if (dir == 0) {
+            di = 80u * y0 + x0;
+            si = di + 80;
+            bx = 80;
+        } else {
+            si = 80u * (y1 - 1) + x0;
+            di = si + 80;
+            bx = -80;
+        }
+        for (r = 0; r < rows; r++) {
+            for (p = 0; p < 4; p++)
+                for (i = 0; i < w; i++)
+                    vset(p, di + i, vb(p, si + i));
+            si = (unsigned)((int)si + bx);
+            di = (unsigned)((int)di + bx);
+        }
+        for (p = 0; p < 4; p++)
+            for (i = 0; i < w; i++)
+                vset(p, di + i, 0);
+    } else {
+        rows = (uint16_t)(y1 - y0 + 1);
+        w = (uint16_t)(x1 - x0);
+        for (r = 0; r < rows; r++) {
+            for (p = 0; p < 4; p++) {
+                if (dir == 2) {                 /* cld: from x0 + 1 to x0, left to right */
+                    di = 80u * (y0 + r) + x0;
+                    for (i = 0; i < w; i++)
+                        vset(p, di + i, vb(p, di + i + 1));
+                    vset(p, di + w, 0);
+                } else {                        /* std: from x1 - 1 to x1, right to left */
+                    di = 80u * (y0 + r) + x1;
+                    for (i = 0; i < w; i++)
+                        vset(p, di - i, vb(p, di - i - 1));
+                    vset(p, di - w, 0);
+                }
+            }
+        }
+    }
+    gfx_mark_dirty(ax.access_page, (int)x0, (int)y0, (int)x1 + 1, (int)y1 + 1);
+}
+
+/* AH=10h: the text window, CX steps */
+void bt_scroll(int dir, unsigned steps)
+{
+    steps &= 0xFFFF;
+    if (dir < 0 || dir > 3)
+        return;
+    while (steps--)
+        scroll_step(dir);
+}
+
+/* AH=11h: the same on a rectangle (the window is swapped in for the time) */
+void bt_scroll_rect(const uint16_t rect[4], int dir, unsigned steps)
+{
+    uint16_t saved[4];
+    memcpy(saved, B.win, sizeof saved);
+    memcpy(B.win, rect, sizeof B.win);
+    bt_scroll(dir, steps);
+    memcpy(B.win, saved, sizeof saved);
+}

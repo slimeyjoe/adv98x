@@ -742,7 +742,7 @@ static void op_scroll(void)                     /* B8 */
         a = 0;
     if (!vm_get_number(&b))
         b = 1;
-    sys_log(AX_LOG_WARN, "scroll %u %u: not implemented yet (M5)", a, b);
+    bt_scroll((int)(b & 0xFF), a);              /* INT F6h AH=10h, AL = b, CX = a */
 }
 
 static void op_define_proc(void)                /* B9 */
