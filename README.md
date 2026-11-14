@@ -34,8 +34,9 @@ make TARGET=host test          # conformance tests (headless)
 
 Options of the SDL3 build: `--lang ja|en`, `--fullscreen`, `--scale integer|aspect|fit|stretch`,
 `--window WxH`, `--storage DIR`, `--view [PICTURE]`. Keys: the host keyboard is the PC-98's
-(Return, Space, Esc, cursor keys, Shift, Ctrl, …); F11 or Alt+Return toggles fullscreen, F12
-cycles the scaling, Shift+Esc quits at once.
+(Return, Space, Esc, cursor keys, Shift, Ctrl, …); the Kana key of a JIS keyboard or Scroll Lock
+toggles kana input (the JIS kana layout, for name entry); F11 or Alt+Return toggles fullscreen,
+F12 cycles the scaling, Shift+Esc quits at once.
 
 ## Licence
 
