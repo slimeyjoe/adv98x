@@ -211,7 +211,7 @@ DS=ES=04E9 inside the handler. Palette words are **0GRB** (bits 11–8 green, 7�
 | AH | entry | in | out | semantics | used |
 |---|---|---|---|---|---|
 | 00 | 0290:009E | – | ES:BX=04E9:0454, CX=F800h | address and size of the GPC load buffer; the caller reads the file there itself (INT F2h AH=00h) | O |
-| 01 | 0290:00AE | DS:SI → 8 words | – | decode and draw the GPC in the buffer (§5.3) | T (ACTE1); O not confirmed (§11.8) |
+| 01 | 0290:00AE | DS:SI → 8 words | – | decode and draw the GPC in the buffer (§5.3) | T (ACTE1); O (`image-show`: the call the copy protection patches in, interpreter.md §7) |
 | 02 | 0290:0336 | ES:DI → 14 bytes | – | info about the GPC in the buffer: x (bytes), y, width (bytes), height, interlace count, far pointer to the file's palette block | |
 | 03–05 | 0290:0098 | | CF | not implemented | |
 | 06 | 0290:059C | AL, CX | CX | animation mode word DS:0180: AL=0 set to CX & 3, return old value; AL≠0 get. bit 0 = stepping enabled, bit 1 = frame drawing enabled. Initial value 3 | |
@@ -281,15 +281,16 @@ no carry convention. The mouse IRQ is masked while a function runs.
 
 ### 4.6 INT F4h — sound (`USDdrv`)
 
-Only installed if a YM2203 answers at 188h/18Ah (§9.2); otherwise the vector is left alone, so callers
-must not assume it exists — NV.OVL's behaviour in that case was not examined. Dispatch (0328:0130): the
+The vector is installed even when no YM2203 answers at 188h/18Ah (`usd_install_once` is called with
+AL = 1, which forces the hook; confirmed by emulation, usd-driver.md §3): every service then returns
+without effect and AH=21h returns 0. Dispatch (0328:0130): the
 table index is `(AH & 7)` plus 0 / 8 / 16 / 24 for AH < 10h / < 20h / < 30h / ≥ 30h (table 0328:0177).
 BP, ES, DS, DI, SI, DX, CX are preserved; **AX and BX are returned as left by the function**; CF is
 returned.
 
 | AH | entry | in | out | semantics | used |
 |---|---|---|---|---|---|
-| 00 | 0328:01E0 | DS:BX=file name | CF if the read failed | stop everything, read the file with INT F2h AH=00h to 2B0F:0000, mark music loaded. Does **not** start playback (that is AH=01h) | O not confirmed (§11.8) |
+| 00 | 0328:01E0 | DS:BX=file name | CF if the read failed | stop everything, read the file with INT F2h AH=00h to 2B0F:0000, mark music loaded. Does **not** start playback (that is AH=01h) | O (`sound "file"`, NV.OVL 0xEB3A) |
 | 01 | 0328:0216 | – | CF if nothing loaded | if music is enabled: full volume, start the loaded song | O |
 | 02 | 0328:0277 | – | – | stop all channels, volume to full | O B |
 | 03 | 0328:027D | – | – | fade out: volume to full, then step −1 every 7 driver ticks. No register is read: the speed is fixed (DX is zeroed at 0328:0287) | O |
@@ -298,7 +299,7 @@ returned.
 | 06 | 0328:01B7 | AL, CX | AX | AL=0: enable mask ← CX & 3 (bit 0 music, bit 1 sound effects), returns old mask, stops playback if music was disabled; AL≠0: return mask. Default 3 | |
 | 07 | 0328:0236 | CX=volume offset | CF if nothing loaded | if music enabled: stop any fade, master volume offset ← CX (signed: 0 = full, −64 = silent), then restart the loaded song from the beginning | O |
 | 10 | 0328:01FB | DS:BX=file name | CF | stop everything, read a sound-effect bank to 2B0F:3000 | O |
-| 11 | 0328:025A | BX=index | CF if SE disabled / none loaded / index out of range | start entry BX of the bank | O |
+| 11 | 0328:025A | BX=index | CF if none loaded / index out of range (CF = 0 and nothing done when effects are disabled; the same holds for AH=01h/04h/07h with music disabled) | start entry BX of the bank | O |
 | 20 | 0328:0445 | – | AX, BX | joystick ports through the OPN I/O ports (§9.5) | |
 | 21 | 0328:04C9 | – | AL | FFh if the driver core initialised (OPN present), 0 otherwise | |
 | 80 (≥30h, &7=0) | 0328:03AF | CX:SI, DX:DI | CF | initialise driver core; internal | B |
@@ -562,7 +563,7 @@ returns AL=1 (**retry**). Non-disk errors return AL=0 (ignore). There is no abor
 ### 9.2 Initialisation and chip detection (**verified**)
 
 `sound_init` 0328:001C: choose the register-access delay by CPU type (INT F1h AH=11h: < 386 a single
-`jmp`, 386 five `jmp`s, 486+ six `out 5Fh`); if INT F4h does not already point at a "USDdrv" signature,
+`jmp`, 386 six `jmp`s (0328:1BD4 falls through into 1BDE), 486+ six `out 5Fh`); if INT F4h does not already point at a "USDdrv" signature,
 run `apiF4_80_Install` → `opn_init` 0328:05BA:
 
 1. Detection: write BFh to SSG register 07h through 188h (address) / 18Ah (data) and read it back; a
@@ -660,12 +661,12 @@ same address) and a byte diff (**verified**):
 
 ## 11. Open questions
 
-1. Sequencer byte code, FM voice (39-byte) and SSG envelope (30-byte) layouts, how tempo maps to timer A,
-   how the master volume offset is applied — the separate sound task. `seq_tick` 0328:0DDA is the entry.
-2. Sound effects: which INT F4h calls NV.OVL really makes for `NVSE*.USO`, and whether anything produces
-   the bank layout expected by AH=10h/11h (§9.4). Related: `interpreter.md`/`mes-format.md` describe the
-   `sound` opcode as passing a fade speed (DL) to AH=03h/04h; USDdrv ignores it (§4.6).
-3. What NV.OVL does when INT F4h is not installed (no YM2203).
+1. (Answered) The sequencer, voice layouts, tempo and master volume: usd-driver.md and
+   usd-sequencer.md.
+2. (Answered) Sound effects: NOVA plays `NVSE*.USO` as ordinary songs through AH=00h + 01h/04h; nothing
+   on the disks has the bank layout of AH=10h/11h. The fade speed NV.OVL passes in DL to AH=03h/04h is
+   ignored by the driver (§4.6).
+3. (Answered) INT F4h is always installed (§4.6).
 4. `out 6Ah,41h` in `init_screen_state` (0000:00A8): which mode flip-flop this is on the targeted machines.
 5. INT F1h AH=06h: the divisor constant 123540h and the port 42h bit 5 test — actual pitch per machine
    class was not derived. Only matters for the text beep.
@@ -673,8 +674,8 @@ same address) and a byte diff (**verified**):
    delivered by INT 1Ch AH=02h (assumed 10 ms units) come from PC-98 documentation, not from this binary.
 7. The real volume labels of the four disks (needed only to emulate the label check faithfully; a
    reimplementation can treat F2h AH=03h/04h as "disk present").
-8. Which INT F3h/F1h/F2h/F4h calls NV.OVL makes with AH set far from the `int` (a handful of call sites
-   the byte scan could not classify), in particular whether NV.OVL itself calls F3h AH=01h/FFh and
-   F4h AH=00h. (F1h AH=00h, F2h AH=00h and F3h AH=00h are confirmed: `sub ah,ah` directly before the `int`.)
+8. (Answered) The complete list of calls NV.OVL makes is in interpreter.md §8, from a full reading of
+   its code: it calls F3h AH=01h (through the patched site) and F4h AH=00h; it never calls F3h AH=FFh, so
+   nothing in NOVA fills WHITEH's target-palette mailbox (plugins.md).
 9. `cpu_detect` class boundaries for values 1 and 2 (V30 vs 80186) were not traced instruction by
    instruction.

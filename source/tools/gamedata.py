@@ -8,7 +8,22 @@ to resources/original/<path> (not committed). Everything else is derived from th
 usage:
   gamedata.py import SRC... [--out DIR]
   gamedata.py check [--out DIR]
+  gamedata.py derive [PART...] [--python PY]
   gamedata.py scan RELEASE SRC...        # print inventory rows for what SRC holds (maintenance)
+
+derive: everything the documents and tests refer to, made from resources/original/ into
+  resources/derived/ (not committed) by the tools in re-tools/ and source/tools/:
+    exe      the unpacked executables (exeunpack.py)            -> derived/exe/
+    scripts  listings, strings, graph of the Japanese and English scripts (mesdis.py,
+             mesgraph.py)                                        -> derived/scripts[-en]/
+    images   every GPC as PNG (gpc.py)                           -> derived/images/gpc/
+    listing  annotated listings of the plug-ins (tcmtool.py)     -> derived/listing/
+    vgm      reference recordings of all songs from the original driver under emulation
+             (usdemu.py; needs unicorn: --python names a Python that has it)
+                                                                 -> derived/music/vgm/
+  Default: all parts; a part whose Python module is missing is skipped with a note.
+The disk-A files FLAG0..FLAG5 and NAME.DEF are the state the dumped copy was left in (saves,
+unlocks, the owner's name): they are imported as test inputs and must never go into a pack.
 
 SRC: any mix of
   - floppy images (D88, FDI, raw) and hard-disk images (HDI, NHD) with FAT12/16 volumes;
@@ -192,14 +207,76 @@ def cmd_check(a):
     return 0 if report(inv, have, a.out) else 1
 
 
+DERIVE_PARTS = ('exe', 'scripts', 'images', 'listing', 'vgm')
+
+
+def cmd_derive(a):
+    import glob
+    import subprocess
+    retools = os.path.join(ROOT, 're-tools')
+    der = os.path.join(ROOT, 'resources', 'derived')
+    disk_a = os.path.join(a.out, 'pc98', 'A')
+    if not os.path.isdir(disk_a):
+        sys.exit('gamedata: %s is missing: import the game first' % disk_a)
+    py = a.python or sys.executable
+
+    def run(interp, *args):
+        cmd = [interp] + (['-I'] if interp == sys.executable else []) + list(args)
+        r = subprocess.run(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        tail = r.stdout.strip().splitlines()[-1:] or ['']
+        print('  %s %s' % ('ok  ' if r.returncode == 0 else 'FAIL', tail[0][:110]))
+        return r.returncode == 0
+
+    def has(interp, mod):
+        return subprocess.run([interp, '-c', 'import ' + mod], stdout=subprocess.DEVNULL,
+                              stderr=subprocess.DEVNULL).returncode == 0
+    ok = True
+    for part in a.parts or DERIVE_PARTS:
+        print('derive %s:' % part)
+        if part == 'exe':
+            os.makedirs(os.path.join(der, 'exe'), exist_ok=True)
+            for f in ('NV.OVL', 'NV.OV1', 'INSTH.EXE'):
+                ok &= run(sys.executable, os.path.join(retools, 'exeunpack.py'),
+                          os.path.join(disk_a, f), os.path.join(der, 'exe', f))
+        elif part == 'scripts':
+            ja = sorted(glob.glob(os.path.join(disk_a, 'MES', '*.MES'))) + [os.path.join(disk_a, 'NV.INI')]
+            en = sorted(glob.glob(os.path.join(a.out, 'en', 'MES', '*.MES')))
+            ok &= run(sys.executable, os.path.join(retools, 'mesdis.py'), 'check', *(ja + en))
+            ok &= run(sys.executable, os.path.join(retools, 'mesdis.py'), 'export', os.path.join(der, 'scripts'), *ja)
+            if en:
+                ok &= run(sys.executable, os.path.join(retools, 'mesdis.py'), 'export', os.path.join(der, 'scripts-en'), *en)
+        elif part == 'images':
+            files = sorted(glob.glob(os.path.join(a.out, 'pc98', '*', 'GPC', '*.GPC')))
+            ok &= run(sys.executable, os.path.join(HERE, 'gpc.py'), 'png', *files, '-o',
+                      os.path.join(der, 'images', 'gpc'), '--disk-prefix')
+        elif part == 'listing':
+            if not has(py, 'capstone'):
+                print('  skipped: %s has no capstone (--python)' % py)
+                continue
+            ok &= run(py, os.path.join(retools, 'tcmtool.py'), 'list')
+        elif part == 'vgm':
+            if not has(py, 'unicorn'):
+                print('  skipped: %s has no unicorn (--python)' % py)
+                continue
+            if not os.path.exists(os.path.join(der, 'exe', 'NV.OV1')):
+                print('  skipped: derive exe first')
+                continue
+            ok &= run(py, os.path.join(retools, 'usdemu.py'), '--all')
+        else:
+            sys.exit('gamedata: unknown part %s (parts: %s)' % (part, ' '.join(DERIVE_PARTS)))
+    return 0 if ok else 1
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest='cmd', required=True)
     p = sub.add_parser('import'); p.add_argument('src', nargs='+'); p.add_argument('--out', default=ORIG)
     p = sub.add_parser('check'); p.add_argument('--out', default=ORIG)
     p = sub.add_parser('scan'); p.add_argument('release'); p.add_argument('src', nargs='+')
+    p = sub.add_parser('derive'); p.add_argument('parts', nargs='*'); p.add_argument('--python')
+    p.add_argument('--out', default=ORIG)
     a = ap.parse_args()
-    sys.exit({'import': cmd_import, 'check': cmd_check, 'scan': cmd_scan}[a.cmd](a))
+    sys.exit({'import': cmd_import, 'check': cmd_check, 'scan': cmd_scan, 'derive': cmd_derive}[a.cmd](a))
 
 
 if __name__ == '__main__':
