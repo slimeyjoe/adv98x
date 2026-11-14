@@ -30,7 +30,10 @@ What this harness adds or models:
     program has found the buffer empty three times in a row, i.e. only while it is waiting for
     input; when the queue is empty and the program keeps polling, the run stops ("starved").
     AH=02h shift state 0. AH=40h/41h/42h (display) are recorded.
-  * INT 21h: AH=30h DOS 3.30; AH=48h/49h allocate (first fit) and free in 6000h-8FFFh, 4Ah
+  * The VSYNC interrupt (INT 0Ah), which PALCH and WHITEH hook through DOS, is delivered
+    between slices of 20 000 instructions when requested (port 64h), unmasked (port 02h bit 2)
+    and interrupts are enabled, as in re-tools/tcmtool.py; old vectors they chain to are stubs.
+  * INT 21h: AH=25h/35h set/get vector; AH=30h DOS 3.30; AH=48h/49h allocate (first fit) and free in 6000h-8FFFh, 4Ah
     succeeds; AH=4Ch (exit) ends the run; the rest returns at once.
 """
 import os
@@ -44,6 +47,8 @@ import advbios_emu as A  # noqa: E402
 X = A.X
 OVL = os.path.join(A.ROOT, 'resources', 'derived', 'exe', 'NV.OVL')
 SEG = 0x5000
+STUB = 0xF100           # interrupt stubs for the vectors plug-ins chain to
+SLICE = 20000           # instructions between VSYNC interrupt opportunities (as tcmtool.py)
 A.HANDLERS.setdefault(0x33, (0x01AB, 0x0178))
 
 
@@ -61,8 +66,15 @@ class NvOvlEmu(A.AdvBiosEmu):
         self.empty_senses = 0
         self.sound = []
         self.display = []
+        self.palette_log = []                   # INT F3h AH=13h / 15h calls
         self.end = None
         self.blocks = {}                        # DOS memory for the plug-ins: 6000h-8FFFh
+        self.imr = 0xFF                         # master PIC mask (port 02h): IRQ2 = VSYNC
+        self.vsync_armed = False                # port 64h written: one VSYNC interrupt requested
+        # old vectors a plug-in chains to: INT 18h -> `int 18h; iret`, INT 0Ah -> `iret`
+        self.uc.mem_write(STUB * 16, b'\xcd\x18\xcf\x00\xcf')
+        self.uc.mem_write(0x18 * 4, struct.pack('<HH', 0, STUB))
+        self.uc.mem_write(0x0A * 4, struct.pack('<HH', 4, STUB))
         d = open(ovl, 'rb').read()
         hdr = struct.unpack_from('<H', d, 8)[0] * 16
         self.uc.mem_write(SEG * 16, d[hdr:hdr + 0x10000])
@@ -174,7 +186,14 @@ class NvOvlEmu(A.AdvBiosEmu):
             self.sound.append((ah, arg))
             return
         if intno == 0x21:
-            if ah == 0x30:
+            if ah == 0x35:                      # get vector AL -> ES:BX
+                off, seg = struct.unpack('<HH', uc.mem_read(al * 4, 4))
+                uc.reg_write(X.UC_X86_REG_ES, seg)
+                uc.reg_write(X.UC_X86_REG_BX, off)
+            elif ah == 0x25:                    # set vector AL <- DS:DX
+                uc.mem_write(al * 4, struct.pack('<HH', uc.reg_read(X.UC_X86_REG_DX),
+                                                 uc.reg_read(X.UC_X86_REG_DS)))
+            elif ah == 0x30:
                 uc.reg_write(X.UC_X86_REG_AX, 0x1E03)
             elif ah == 0x48:                    # allocate BX paragraphs (plug-ins: ACTE1)
                 n = uc.reg_read(X.UC_X86_REG_BX)
@@ -194,6 +213,13 @@ class NvOvlEmu(A.AdvBiosEmu):
                 self.end = 'exit'
                 uc.emu_stop()
             return
+        if intno == 0xF3 and ah == 0x13:
+            ds, si = uc.reg_read(X.UC_X86_REG_DS), uc.reg_read(X.UC_X86_REG_SI)
+            words = struct.unpack('<16H', uc.mem_read(ds * 16 + si, 32))
+            self.palette_log.append('13 %d ' % al + ' '.join('%03X' % w for w in words))
+        elif intno == 0xF3 and ah == 0x15:
+            self.palette_log.append('15 %d %d %03X' % (al, uc.reg_read(X.UC_X86_REG_CX) & 0xFF,
+                                                    uc.reg_read(X.UC_X86_REG_BX)))
         if intno in (0xF1, 0xF3, 0xF6, 0x33):
             return super()._intr(uc, intno, ud)
         return super()._intr(uc, intno, ud)
@@ -209,6 +235,36 @@ class NvOvlEmu(A.AdvBiosEmu):
             return None
         self.blocks[seg] = n
         return seg
+
+    def _in(self, uc, port, size, ud):
+        if port == 0x02:
+            return self.imr
+        return super()._in(uc, port, size, ud)
+
+    def _out(self, uc, port, size, value, ud):
+        if port == 0x02:
+            self.imr = value & 0xFF
+        elif port == 0x64:
+            self.vsync_armed = True
+        else:
+            super()._out(uc, port, size, value, ud)
+
+    def _deliver_vsync(self):
+        """INT 0Ah when requested (port 64h), unmasked (IRQ2) and interrupts are enabled"""
+        uc = self.uc
+        fl = uc.reg_read(X.UC_X86_REG_EFLAGS)
+        if not self.vsync_armed or self.imr & 4 or not fl & 0x200:
+            return
+        off, seg = struct.unpack('<HH', uc.mem_read(0x0A * 4, 4))
+        self.vsync_armed = False
+        sp = (uc.reg_read(X.UC_X86_REG_SP) - 6) & 0xFFFF
+        ss = uc.reg_read(X.UC_X86_REG_SS)
+        uc.mem_write(ss * 16 + sp, struct.pack('<HHH', uc.reg_read(X.UC_X86_REG_IP),
+                                               uc.reg_read(X.UC_X86_REG_CS), fl & 0xFFFF))
+        uc.reg_write(X.UC_X86_REG_SP, sp)
+        uc.reg_write(X.UC_X86_REG_EFLAGS, fl & ~0x200)
+        uc.reg_write(X.UC_X86_REG_CS, seg)
+        uc.reg_write(X.UC_X86_REG_IP, off)
 
     def _name(self, seg, off):
         b = bytes(self.uc.mem_read(seg * 16 + off, 128)).split(b'\0')[0]
@@ -271,7 +327,13 @@ class NvOvlEmu(A.AdvBiosEmu):
                      (X.UC_X86_REG_SS, SEG), (X.UC_X86_REG_SP, 0xFFF0),
                      (X.UC_X86_REG_IP, 0xDC97), (X.UC_X86_REG_EFLAGS, 0x0202)):
             uc.reg_write(r, v)
-        uc.emu_start(SEG * 16 + 0xDC97, 0xFFFFF, count=count)
+        done = 0
+        while self.end is None and done < count:
+            cs, ip = uc.reg_read(X.UC_X86_REG_CS), uc.reg_read(X.UC_X86_REG_IP)
+            uc.emu_start(cs * 16 + ip, 0xFFFFF, count=SLICE)
+            done += SLICE
+            if self.end is None:
+                self._deliver_vsync()
         if self.end is None:
             raise RuntimeError('NV.OVL stopped at %04X:%04X' % (uc.reg_read(X.UC_X86_REG_CS),
                                                                uc.reg_read(X.UC_X86_REG_IP)))
@@ -282,5 +344,6 @@ class NvOvlEmu(A.AdvBiosEmu):
             with_pointer = self.planes()
             self.call(0x33, ax=2)
         return dict(end=self.end, mem=bytes(uc.mem_read(SEG * 16, 0x10000)),
-                    planes=self.planes(), pointer_planes=with_pointer, storage=dict(self.storage), sound=list(self.sound),
+                    planes=self.planes(), pointer_planes=with_pointer,
+                    palette_log=list(self.palette_log), storage=dict(self.storage), sound=list(self.sound),
                     display=list(self.display))

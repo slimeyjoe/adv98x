@@ -1382,7 +1382,12 @@ void vm_run_game(const char *start)
     if (r == 0 || r == UNWIND_JUMP) {
         ax.script_name = (const char *)M + MES_NAME;
         sys_trace(AX_TR_SCRIPT, (const char *)M + MES_NAME, 0, 0, 0, 0, 0);
-        vm_run_saved(MES_SCRIPT);
+        if (r == 0) {                   /* restart 0xDD0E: the start script by a bare `run` */
+            vm_si = MES_SCRIPT;
+            vm_run();
+        } else {                        /* mes-jump 0xE5B6: through run_saved */
+            vm_run_saved(MES_SCRIPT);
+        }
     }
     text_flush();
     first = 0;

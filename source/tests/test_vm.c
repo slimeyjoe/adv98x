@@ -25,6 +25,8 @@ static int g_in_wait, g_wait_polls, g_wait_kind;
 static uint32_t g_frames;
 static char g_sound[64][80];
 static int g_nsound;
+static char g_pal[512][100];
+static int g_npal;
 
 static void dump(const char *why)
 {
@@ -55,6 +57,8 @@ static void dump(const char *why)
     putchar('\n');
     for (i = 0; i < g_nsound; i++)
         printf("sound %s\n", g_sound[i]);
+    for (i = 0; i < g_npal; i++)
+        printf("pal %s\n", g_pal[i]);
     fflush(stdout);
 }
 
@@ -72,6 +76,16 @@ static void tv_trace(const struct ax_trace_event *ev)
         g_in_wait = ev->a1 == 0;
         g_wait_kind = ev->a0;
         g_wait_polls = 0;
+    }
+    if (ev->kind == AX_TR_PALETTE && ev->name && g_npal < 512) {
+        int k, n = 0;
+        char *o = g_pal[g_npal++];
+        if (ev->name[0] == 's')
+            n += snprintf(o, 100, "13 %d", ev->a0);
+        else
+            n += snprintf(o, 100, "15 %d %d", ev->ints[0], ev->ints[2]);
+        for (k = ev->name[0] == 's' ? 0 : 1; k < (ev->name[0] == 's' ? 16 : 2); k++)
+            n += snprintf(o + n, (size_t)(100 - n), " %03X", ev->ints[k]);
     }
     if (ev->kind == AX_TR_SOUND && g_nsound < 64) {
         if (ev->name)

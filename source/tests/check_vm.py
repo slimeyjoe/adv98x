@@ -15,7 +15,12 @@ then these must be identical:
     the pointer (drawn into VRAM by AdvBIOS's driver, into the presented frame by the engine);
   * the DAC (palette at the current brightness);
   * the save files written;
-  * the sound calls (INT F4h function and argument), in order.
+  * the sound calls (INT F4h function and argument), in order;
+  * every palette write of the plug-ins (INT F3h AH=13h / 15h), in order.
+
+Besides the game's own scripts, SYNTHETIC scenarios run test scripts assembled here (put in
+place of RUN.MES on both sides) to exercise what NOVA reaches only late in the game (PALCH,
+WHITEH).
 
 CHECK_VM_OUT=DIR writes both screens of a failing scenario there as PNG.
 
@@ -60,7 +65,54 @@ SCENARIOS = {
     'continue_en': ('en', DUMP_SAVES, [DOWN] * 3 + [RET, RET] + [RET] * 40),
 }
 
-AFTER_M5 = {}
+
+# ---- synthetic scripts: assembled here, run in place of RUN.MES on both sides ----
+def num(n):
+    if n < 5:
+        return bytes([0x23 + n])
+    if n < 256:
+        return bytes([0x28, n])
+    return bytes([0x29 + (n >> 14), (n >> 7) & 0x7F, n & 0x7F])
+
+
+def qs(text):
+    return b'"' + text.encode('ascii') + b'"'
+
+
+def op(code, *args):
+    out = bytes([code])
+    for a in args:
+        out += qs(a) if isinstance(a, str) else num(a)
+    return out
+
+
+END = b'\xab\xff\xff\xff\xfe'            # wait for a key (the run stops there), end
+SHOW_NV01 = op(0xC9, '\\GPC\\NV01.GPC') + op(0xCF, 0, 3)     # a picture with its palette
+
+
+def palch_script():
+    s = op(0xC8, 'PALCH.TCM', 8704) + SHOW_NV01
+    s += op(0xCD, 8704, 14, 11, 9, 10, 6)          # NOVA's call: glide colour 14 to A9B
+    s += op(0xCD, 8704, 3, 15, 0, 7)               # four arguments: at once
+    s += op(0xD1, 2, 7) + op(0xCD, 8704, 5, 0, 15, 15, 1)   # at brightness 7, speed 1
+    s += op(0xCD, 8704, 2, 1, 2, 3, 0)             # speed 0
+    s += op(0xCD, 8704, 16, 1, 2, 3, 4) + op(0xCD, 8704, 2, 16, 2, 3)    # rejected
+    return s + END
+
+
+def whiteh_script():
+    s = op(0xC8, 'WHITEH.TCM', 5376) + SHOW_NV01
+    s += op(0xCD, 5376, 1, 8)                      # NOVA's call: to white, 8 frames a step
+    s += SHOW_NV01 + op(0xCD, 5376, 0, 3)          # from white to the mailbox (zeros)
+    s += SHOW_NV01 + op(0xCD, 5376, 2, 2)          # both, the second half one frame faster
+    s += op(0xCD, 5376, 1, 0) + op(0xCD, 5376, 3, 1)     # speed 0; mode 3 rejected
+    return s + END
+
+
+SYNTHETIC = {
+    'palch': ('ja', [], [], palch_script),
+    'whiteh': ('ja', [], [], whiteh_script),
+}
 
 RANGES = [(0x0000, 0x0100), (0x9000, 0xC000), (0xC006, 0xD006), (0xD006, 0xD8C0), (0xD937, 0xD959),
           (0xD9E3, 0xDB00), (0xDB20, 0xDC20)]
@@ -81,19 +133,40 @@ def original_files(original, lang):
     return files
 
 
-def run_reference(original, fonts, lang, saves, keys):
+def run_reference(original, fonts, lang, saves, keys, script=None):
     import nvovl_emu
     storage = {s: open(os.path.join(original, 'pc98', 'A', s), 'rb').read() for s in saves}
-    emu = nvovl_emu.NvOvlEmu(original_files(original, lang), fonts=fonts, keys=list(keys),
-                             storage=storage)
+    files = original_files(original, lang)
+    if script:
+        files['RUN.MES'] = script
+    emu = nvovl_emu.NvOvlEmu(files, fonts=fonts, keys=list(keys), storage=storage)
     r = emu.run('\\MES\\RUN.MES')
     written = {k: v for k, v in r['storage'].items() if storage.get(k) != v}
     return dict(end=r['end'], mem=r['mem'], planes=r['planes'], pointer=r['pointer_planes'],
+                palette_log=r['palette_log'],
                 dac=[v for rgb in emu.dac for v in rgb], storage=written,
                 sound=['%d %s' % (ah, '-' if a is None else a) for ah, a in r['sound']])
 
 
-def run_engine(exe, pak, original, lang, saves, keys):
+def script_pack(pak, script):
+    """the pack with RUN replaced by a test script (both languages)"""
+    sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+    import xpak
+    pk = xpak.Pack()
+    for e in xpak.read(open(pak, 'rb').read()):
+        if e['type'] == xpak.T_MES and e['name'] == 'RUN':
+            continue
+        pk.entries.append((e['name'], e['type'], e['lang'], e['data']))
+    for lang in (xpak.L_JA, xpak.L_EN):
+        pk.add('RUN', xpak.T_MES, lang, script)
+    path = os.path.join(tempfile.mkdtemp(prefix='adv98x-pak-'), 'test.pak')
+    open(path, 'wb').write(pk.build())
+    return path
+
+
+def run_engine(exe, pak, original, lang, saves, keys, script=None):
+    if script:
+        pak = script_pack(pak, script)
     d = tempfile.mkdtemp(prefix='adv98x-vm-')
     before = {}
     for s in saves:
@@ -103,7 +176,7 @@ def run_engine(exe, pak, original, lang, saves, keys):
     keystr = ','.join('C:%d:%d' % k[1:] if k[0] == 'click' else 'R*' if k[0] == 'ret*' else
                       '%02X%02X' % k for k in keys) or '-'
     out = subprocess.run([exe, pak, d, lang, keystr], capture_output=True, text=True).stdout
-    r = dict(sound=[], planes=[], pointer=None)
+    r = dict(sound=[], planes=[], pointer=None, palette_log=[])
     for line in out.splitlines():
         k, _, v = line.partition(' ')
         if k == 'end':
@@ -112,6 +185,8 @@ def run_engine(exe, pak, original, lang, saves, keys):
             r['mem'] = bytes.fromhex(v)
         elif k == 'plane':
             r['planes'].append(bytes.fromhex(v))
+        elif k == 'pal':
+            r['palette_log'].append(v)
         elif k == 'pointer':
             r['pointer'] = (r['pointer'] or []) + [bytes.fromhex(v)]
         elif k == 'dac':
@@ -151,12 +226,18 @@ def compare(name, got, ref):
         bad.append('dac: engine %s, NV.OVL %s' % (got.get('dac'), ref['dac']))
     if got['storage'] != ref['storage']:
         bad.append('saves written: engine %s, NV.OVL %s' % (sorted(got['storage']), sorted(ref['storage'])))
+    if got['palette_log'] != ref['palette_log']:
+        i = next((i for i, (a, b) in enumerate(zip(got['palette_log'], ref['palette_log'])) if a != b),
+                 min(len(got['palette_log']), len(ref['palette_log'])))
+        bad.append('palette writes (%d / %d): first difference at %d: engine %s, NV.OVL %s' % (
+            len(got['palette_log']), len(ref['palette_log']), i,
+            got['palette_log'][i:i + 1], ref['palette_log'][i:i + 1]))
     if got['sound'] != ref['sound']:
         bad.append('sound: engine %s, NV.OVL %s' % (got['sound'][:12], ref['sound'][:12]))
     script = ref['mem'][0x9A:0xFD].split(b'\0')[0].decode('ascii', 'replace')
-    print('%s: %s at %s%s, %d sound calls, %d saves: %s' % (
+    print('%s: %s at %s%s, %d sound calls, %d palette writes, %d saves: %s' % (
         name, ref['end'], script, ' (pointer shown)' if ref['pointer'] else '',
-        len(ref['sound']), len(ref['storage']),
+        len(ref['sound']), len(ref['palette_log']), len(ref['storage']),
         'OK' if not bad else 'FAILED'))
     for b in bad:
         print('    ' + b)
@@ -180,7 +261,7 @@ def write_png(path, planes, dac):
 
 def main():
     exe, pak, original, fonts = sys.argv[1:5]
-    names = sys.argv[5:] or list(SCENARIOS)
+    names = sys.argv[5:] or list(SCENARIOS) + list(SYNTHETIC)
     try:
         import unicorn  # noqa: F401
     except ImportError:
@@ -188,9 +269,14 @@ def main():
         return 0
     ok = True
     for name in names:
-        lang, saves, keys = SCENARIOS.get(name) or AFTER_M5[name]
-        ref = run_reference(original, fonts, lang, saves, keys)
-        got = run_engine(exe, pak, original, lang, saves, keys)
+        if name in SYNTHETIC:
+            lang, saves, keys, make = SYNTHETIC[name]
+            script = make()
+        else:
+            lang, saves, keys = SCENARIOS[name]
+            script = None
+        ref = run_reference(original, fonts, lang, saves, keys, script)
+        got = run_engine(exe, pak, original, lang, saves, keys, script)
         ok &= compare(name, got, ref)
     print('check_vm: %d scenarios: %s' % (len(names), 'OK' if ok else 'FAILED'))
     return 0 if ok else 1

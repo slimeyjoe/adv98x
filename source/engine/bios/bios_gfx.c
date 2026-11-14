@@ -65,6 +65,12 @@ int bg_brightness(void)
 
 void bg_set_palette(const uint16_t pal[16], int al)
 {
+    if (AX_TRACING()) {
+        int w[16], i;
+        for (i = 0; i < 16; i++)
+            w[i] = pal[i];
+        sys_trace_ints(AX_TR_PALETTE, "set", w, 16, al & 0xFF);
+    }
     gfx_set_palette(pal);
     if ((al & 0xFF) != 0xFF)
         bg_set_brightness(al);
@@ -79,6 +85,11 @@ void bg_get_palette(uint16_t pal[16])
  * wait) with brightness row CL, the stored brightness unchanged */
 void bg_set_entry(int i, unsigned grb, int cl)
 {
+    if (AX_TRACING()) {
+        int w[3];
+        w[0] = i & 0xFF; w[1] = (int)(grb & 0xFFFF); w[2] = cl & 0xFF;
+        sys_trace_ints(AX_TR_PALETTE, "entry", w, 3, 0);
+    }
     ax.palette[i & 15] = (uint16_t)grb;
     if ((cl & 0xFF) != 0xFF)
         gfx_program_colour(i & 15, cl & 15);
