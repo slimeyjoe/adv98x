@@ -142,7 +142,9 @@ jumps to the script named in it — a game resumes at the **start of the script 
 it was saved**, with flags and variables as saved. `flag-load n m` with m ≠ 0 merges instead: bit 0 of
 m copies the flags (bytes 0x00–0x7F), bit 1 the variables A–Z, and nothing jumps; a missing file
 counts as all zeros. `save-check n` sets flags 1000+i for i = 0..n (at most ten files, 0..9) to whether `FLAGi` exists
-and is valid (256 bytes, last byte ≠ 0).
+and is valid: 256 bytes read and the last byte FFh exactly (the byte is sign-extended and must give
+FFFFh, 0xE8DA–0xE8E1; **verified**). `flag-load` is less strict: any non-zero last byte counts as a
+save (0xE771–0xE777).
 
 In NOVA: FLAG0–2 are the three save slots; the existence of FLAG3, FLAG4 and FLAG5 is how the game
 remembers that the 2nd story, the 3rd story and the Sound/Graphic modes are unlocked (MODE.MES:

@@ -20,6 +20,11 @@ Contents (types and the layout: source/engine/pack/pack.h, tools/xpak.py):
            plus the Japanese ones the translation does not replace (RUN.MES). NV.INI is not
            packed: the engine starts where it ends (docs/re/interpreter.md §7)
   FONT     font16 (JIS X 0208, 16x16) and font8 (half-width, 8x16), from xfont.py (--no-bold)
+  STRINGS  "messages" per language: the interpreter's three built-in messages (save failed,
+           nothing saved there, load failed) as script fragments ending in FF FF. Japanese:
+           the original fragments, taken from the user's NV.OVL (unpacked with
+           re-tools/exeunpack.py, 0xD95B-0xD9E2); other languages: our own text in the same
+           frame (text-clear 0, colour 15, the text, wait, text-clear 0)
   META     "profile" (the game: title, start script, plug-in modules, default language),
            "lang" per language (encoding, name), "meta" (pack format)
 Plug-in code (.TCM) and the engine executables are not packed: the engine replaces them.
@@ -28,11 +33,14 @@ import argparse
 import collections
 import hashlib
 import os
+import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, HERE)
+sys.path.insert(1, os.path.join(ROOT, 're-tools'))
+import exeunpack  # noqa: E402
 import gamedata  # noqa: E402
 import xpak      # noqa: E402
 
@@ -48,8 +56,31 @@ PROFILES = {
         # duplicated picture names whose files differ, and the disk whose file is taken
         'picture_choice': {'NV43A': 'B'},
         'languages': {'ja': '日本語', 'en': 'English'},
+        # the built-in messages: where they are in the unpacked NV.OVL, and our English text
+        'messages_at': (0xD95B, 0xD9E3),
+        'messages_en': ('Could not save.', 'Nothing is saved there.', 'Could not load.'),
     },
 }
+
+# the frame of a built-in message, as in the original fragments: text-clear 0, text-color 15,
+# the text, wait, text-clear 0, end of segment
+MSG_HEAD = bytes([0xAA, 0x23, 0xA8, 0x28, 0x0F])
+MSG_TAIL = bytes([0xAB, 0xAA, 0x23, 0xFF, 0xFF])
+
+
+def original_messages(nvovl, at):
+    """The three fragments from the interpreter image (checked to be framed as expected)."""
+    img = exeunpack.unpack(nvovl, log=lambda *a: None)
+    hdr = struct.unpack_from('<H', img, 8)[0] * 16
+    blob = img[hdr + at[0]:hdr + at[1]]
+    frags = blob.split(b'\xff\xff')
+    if len(frags) != 4 or frags[3] or any(not f.startswith(MSG_HEAD) for f in frags[:3]):
+        die('NV.OVL: the built-in messages are not where expected')
+    return blob
+
+
+def own_messages(texts):
+    return b''.join(MSG_HEAD + b'!' + t.encode('ascii') + b'\0' + MSG_TAIL for t in texts)
 
 
 def die(msg):
@@ -140,6 +171,10 @@ def main():
     for lang in langs:
         pk.add('lang', xpak.T_META, xpak.LANG_IDS[lang],
                ('encoding=cp932\nname=%s\n' % prof['languages'][lang]).encode('utf-8'))
+    nvovl = read_checked(inv, a.original, 'pc98', 'A/NV.OVL')
+    pk.add('messages', xpak.T_STRINGS, xpak.L_JA, original_messages(nvovl, prof['messages_at']))
+    if 'en' in langs:
+        pk.add('messages', xpak.T_STRINGS, xpak.L_EN, own_messages(prof['messages_en']))
 
     if a.fonts:
         for name, fname in (('font16', 'k16.xfnt'), ('font8', 'ank8.xfnt')):

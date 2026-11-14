@@ -136,6 +136,11 @@ static void poll_input(void)
     }
     clamp_pointer();
     ax.in = in;
+    /* a click shorter than a poll still holds its button down for this one poll */
+    if (in.events & AX_EV_MOUSE_L)
+        ax.in.buttons |= AX_BTN_L;
+    if (in.events & AX_EV_MOUSE_R)
+        ax.in.buttons |= AX_BTN_R;
 }
 
 int sys_quitting(void)

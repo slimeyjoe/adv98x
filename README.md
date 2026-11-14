@@ -8,8 +8,9 @@ faithfully: text, pictures, palette effects, menus, click maps, saves and the FM
 The engine is written from the reverse-engineering notes in [`docs/re/`](docs/re/README.md); the
 implementation plan and its status are in [`docs/engine-plan.md`](docs/engine-plan.md).
 
-**Status:** early. The platform layer, the game pack and the picture decoder work (milestone
-M0); the script interpreter comes next. Running the game is not possible yet.
+**Status:** early. The interpreter runs the original scripts (Japanese and English) with
+pictures, text, palette effects, menus, click maps and saves; there is no sound yet, and name
+entry and a few palette effects are still missing (milestones M4, M5 of the plan).
 
 ## You need the game
 
@@ -26,7 +27,8 @@ cd source
 make data SRC="..."            # import your copy of the game (docs/game-data.md)
 make pack                      # -> build/nova.pak
 make TARGET=sdl3               # -> build/sdl3/adv98x
-../build/sdl3/adv98x --pak ../build/nova.pak --view    # the picture viewer, for now
+../build/sdl3/adv98x --pak ../build/nova.pak [--lang en]
+../build/sdl3/adv98x --pak ../build/nova.pak --view    # the picture viewer
 make TARGET=host test          # conformance tests (headless)
 ```
 

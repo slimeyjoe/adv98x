@@ -1,7 +1,7 @@
 # Adv98X — a new engine for Adv98V 1.70.54 games (first game: NOVA)
 
 The implementation plan, approved 2026-11-14. Status: research (phase 1) complete, housekeeping
-before M0 done, **M0 and M1 done** (2026-11-14), M2 next. Update the status line and tick milestones here as
+before M0 done, **M0–M2 done** (2026-11-14); M3 (menus, mouse, maps, saves) has its code in already and needs its cursor, tests and e2e; then M4. Update the status line and tick milestones here as
 they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
@@ -184,7 +184,7 @@ palette services, `bios_text.c` in full, bold, half-width paths. *Tests:* `test_
 103 distinct GPC files with `source/tools/gpc.py` output; `test_text` compares rendered text cells
 against expected plane patterns (wrap, line pitch, bold, the two half-width code paths).
 
-**M2 — The VM, silent.** `mes_mem.c`, `mes_vm.c` with every opcode, waits and delays with skip,
+**M2 — The VM, silent.** ✔ `mes_mem.c`, `mes_vm.c` with every opcode, waits and delays with skip,
 fades, `mes-jump`, procs, `if`/`when`/branches, `seg-call`, sub-scripts, name substitution, and the
 modules NOVA calls around every line (`chgfonth`, `acte1` INIT/GET/PUT/FREE). *Tests:* `test_mes`
 (unit: operand reader, scanners against `mes.py` on all 236 scripts, token semantics); null-backend
@@ -302,3 +302,35 @@ Decisions taken while implementing, where the work refined or departed from the 
   programs one colour at once with brightness row CL.
 - `check_gpc.py` compares all 103 distinct GPC files with `gpc.py` and the draw semantics
   (position override, masked mode, rows continuing past column 79, clipping) on a background.
+
+**M2 (2026-11-14)**
+
+- *Source.* The VM was written from NV.OVL's handlers themselves (the listing `gamedata.py derive`
+  can make locally: `re-tools/dis16.py` on `resources/derived/exe/NV.OVL` with the names of
+  `docs/re/listing/nvovl-names.tsv`), every function naming its original address. One file,
+  `vm/mes_vm.c` (run loop, operands, scanners, all 51 opcodes), plus `vm/mes_menu.c`; the memory
+  model lives in `ax.mem` with the layout of `vm/mes.h` (no separate `mes_mem.c`).
+- *Unwinding.* The original's SP resets are `longjmp`s: mes-jump, exit and a quit go to the top
+  level (`vm_run_game`), exit inside `mes-call` to the sub-script's level. Ending the main script
+  ends the game, as the original returns to DOS (M7 decides what the engine does then).
+- *Already in, though planned for M3:* menu and menu2 with mouse hover/click/cancel and the key
+  steps, the click maps (`input`), saves (`flag-save`, `flag-load` full and merge, `save-check`),
+  `name-load`, the built-in messages, the AdvBIOS mouse driver with its keyboard emulation, the
+  INT F1h waits. M3 still owes the drawn pointer (`cursor.c`), its tests and the e2e.
+- *Built-in messages.* The pack's `messages` entry per language: the Japanese fragments are taken
+  from the user's NV.OVL at pack time (`mkpack.py`, via `re-tools/exeunpack.py`), the English ones
+  are ours. Japanese ones sit at their original addresses; longer ones above the interpreter's
+  image (0xEE80) in the model.
+- *Script names* keep the original form `\MES\NAME.MES` at 0x9A (the start is `\MES\RUN.MES`,
+  as NV.INI would leave it), so saves are byte-compatible.
+- *Stubs until their milestone:* sound calls are traced only (M4); PALCH, WHITEH, INPUTNAM,
+  ACTE1's SHOW/ACCE/COPY/MOVE/LOAD, scrolling, the curtain and the animation-cell opcodes log a
+  warning (M5). The STOP-key quit prompt is M5; the host's window close quits at once.
+- *Tests.* `check_mes.py`: skip_token, get_number and skip_block on every byte offset of the 236
+  scripts and NV.INI against `mes.py` (1.13 M results; numbers modulo 2^16 as in AX).
+  `check_run.py`: headless play from RUN.MES answering every wait with Return, 40 000 frames per
+  language (reaches the 1st story's map loop S012/S013): every executed opcode starts an opcode
+  node of `mes.py`'s parse, every script change is a mes-jump of the previous script, every
+  picture shown is named by the current script, no error events.
+- *Doc fix.* `save-check` counts a save only when its last byte is exactly FFh; `flag-load`
+  accepts any non-zero byte (interpreter.md §5.1 corrected).

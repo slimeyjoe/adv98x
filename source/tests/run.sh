@@ -47,8 +47,15 @@ else
 fi
 if [ -n "$HAVE_GAME" ]; then
     run $PY -I "$HERE/check_gpc.py" "$BIN/test_gpc" "$ORIGINAL"
+    run $PY -I "$HERE/check_mes.py" "$BIN/test_mes" "$ORIGINAL"
 else
-    skip check_gpc "needs the game"
+    skip "check_gpc, check_mes" "need the game"
+fi
+if [ -n "$HAVE_GAME" ] && [ -f "$PAK" ]; then
+    run $PY -I "$HERE/check_run.py" "$BUILD/adv98x" "$PAK" "$ORIGINAL" --lang ja --frames 40000
+    run $PY -I "$HERE/check_run.py" "$BUILD/adv98x" "$PAK" "$ORIGINAL" --lang en --frames 40000
+else
+    skip check_run "needs the game and $PAK"
 fi
 
 # ---- against AdvBIOS's own code under emulation --------------------------------------------

@@ -24,6 +24,26 @@ int bg_draw_gpc(const uint8_t *data, uint32_t size, unsigned xb, unsigned y, int
     return 0;
 }
 
+/* AH=00h: the GPC load buffer 04E9:0454, F800h bytes */
+uint8_t *bg_picture_buffer(uint32_t *cap)
+{
+    if (!ax.bios.picbuf)
+        ax.bios.picbuf = sys_alloc(0xF800);
+    *cap = 0xF800;
+    return ax.bios.picbuf;
+}
+
+/* the animation cells (§5.4), unused by NOVA: the mode switch and the 2-tick step arrive with
+ * M5 together with the cell services */
+void bg_anim_mode(int on)
+{
+    (void)on;
+}
+
+void bg_anim_poll(void)
+{
+}
+
 void bg_default_palette(void)
 {
     gfx_set_palette(gfx_default_palette);

@@ -1,10 +1,13 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* ax_run: start-up, the game (or the picture viewer), shutdown. */
+#include <stdio.h>
 #include <string.h>
 #include "ax_internal.h"
 #include "gfx/gfx.h"
 #include "gfx/gpc.h"
 #include "text/font.h"
+#include "vm/mes.h"
+#include "mod/mod.h"
 
 /* ---- picture viewer (--view): a tool for looking at the pack's pictures as AdvBIOS draws
  * them: the page cleared to colour 0, the picture opaque at its own position, its palette at
@@ -94,6 +97,34 @@ static int run_viewer(void)
     return 0;
 }
 
+/* ---- the game ------------------------------------------------------------------------------ */
+
+/* the built-in messages of the interpreter (save failed, nothing saved, load failed) as script
+ * fragments, per language: the pack's "messages" entry (tools/mkpack.py) */
+static void install_messages(void)
+{
+    const struct xpak_entry *e = xpak_find(&ax.pak, "messages", XPAK_T_STRINGS);
+    uint32_t size;
+    uint8_t *d;
+    if (!e || !(d = xpak_load(&ax.pak, e, &size))) {
+        sys_log(AX_LOG_WARN, "pack: no built-in messages for this language");
+        return;
+    }
+    vm_set_messages(d, size);
+    xpak_free(&ax.pak, d, size);
+}
+
+static int run_game(void)
+{
+    char start[40];
+    snprintf(start, sizeof start, "\\MES\\%s.MES", ax.profile.start);
+    vm_init();
+    mod_init(ax.profile.modules);
+    install_messages();
+    vm_run_game(start);
+    return 0;
+}
+
 /* ---- the engine --------------------------------------------------------------------------- */
 
 void ax_audio_render(int16_t *pcm, int frames)
@@ -133,9 +164,7 @@ int ax_run(const struct ax_hal *hal, const struct ax_config *cfg)
     if (cfg->view) {
         rc = run_viewer();
     } else {
-        /* the interpreter arrives with milestone M2 (docs/engine-plan.md) */
-        sys_log(AX_LOG_ERROR, "the script interpreter is not there yet: run with --view");
-        rc = 1;
+        rc = run_game();
     }
 
     sys_trace(AX_TR_QUIT, 0, 0, rc, 0, 0, 0);

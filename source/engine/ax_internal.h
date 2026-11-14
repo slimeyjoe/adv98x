@@ -56,6 +56,9 @@ struct ax_state {
     int dac_changed;
     uint16_t mailbox[16];               /* INT F3h AH=FFh buffer 0290:045C */
 
+    /* the interpreter's segment (vm/mes.h): 64 KB + a guard */
+    uint8_t *mem;
+
     /* AdvBIOS service state (bios/bios.h) */
     struct ax_bios bios;
     int beeper_on;
