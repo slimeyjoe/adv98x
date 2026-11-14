@@ -8,9 +8,12 @@ faithfully: text, pictures, palette effects, menus, click maps, saves and the FM
 The engine is written from the reverse-engineering notes in [`docs/re/`](docs/re/README.md); the
 implementation plan and its status are in [`docs/engine-plan.md`](docs/engine-plan.md).
 
-**Status:** early. The interpreter runs the original scripts (Japanese and English) with
-pictures, text, palette effects, menus, click maps and saves; there is no sound yet, and name
-entry and a few palette effects are still missing (milestones M4, M5 of the plan).
+**Status:** the game plays through, in Japanese and English: the original scripts with pictures,
+text, palette effects, menus, click maps, saves, name entry and the FM music. Verified against
+the original interpreter and AdvBIOS running under emulation, and played headless through all
+three stories; not yet tuned by ear and eye (music balance, timing feel). Still missing: features
+NOVA does not use (animation cells, beeper, the STOP-key quit prompt) and the release polish
+(docs/engine-plan.md, M6–M7).
 
 ## You need the game
 
@@ -29,7 +32,8 @@ make pack                      # -> build/nova.pak
 make TARGET=sdl3               # -> build/sdl3/adv98x
 ../build/sdl3/adv98x --pak ../build/nova.pak [--lang en]
 ../build/sdl3/adv98x --pak ../build/nova.pak --view    # the picture viewer
-make TARGET=host test          # conformance tests (headless)
+make TARGET=host test          # conformance tests (headless; the emulation references need
+                               # a Python with unicorn, see docs/re/README.md "Tools")
 ```
 
 Options of the SDL3 build: `--lang ja|en`, `--fullscreen`, `--scale integer|aspect|fit|stretch`,

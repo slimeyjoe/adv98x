@@ -18,7 +18,8 @@ derive: everything the documents and tests refer to, made from resources/origina
     scripts  listings, strings, graph of the Japanese and English scripts (mesdis.py,
              mesgraph.py)                                        -> derived/scripts[-en]/
     images   every GPC as PNG (gpc.py)                           -> derived/images/gpc/
-    listing  annotated listings of the plug-ins (tcmtool.py)     -> derived/listing/
+    listing  annotated listings of the plug-ins (tcmtool.py), of AdvBIOS and of the interpreter
+             (dis16.py with docs/re/listing/*-names.tsv)        -> derived/listing/
     vgm      reference recordings (VGM and register-write logs) of all songs from the original driver under emulation
              (usdemu.py; needs unicorn: --python names a Python that has it)
                                                                  -> derived/music/vgm/
@@ -255,6 +256,21 @@ def cmd_derive(a):
                 print('  skipped: %s has no capstone (--python)' % py)
                 continue
             ok &= run(py, os.path.join(retools, 'tcmtool.py'), 'list')
+            # NV.OV1 (AdvBIOS) and NV.OVL (the interpreter), named from docs/re/listing/
+            names = os.path.join(ROOT, 'docs', 're', 'listing')
+            lst = os.path.join(der, 'listing')
+            os.makedirs(lst, exist_ok=True)
+            ok &= run(py, os.path.join(retools, 'dis16.py'), os.path.join(der, 'exe', 'NV.OV1'),
+                      '--names', os.path.join(names, 'advbios-names.tsv'),
+                      '--out', os.path.join(lst, 'advbios.lst'))
+            ovl_names = os.path.join(lst, 'nvovl-names.seg.tsv')     # bare offsets -> 0000:OFF
+            with open(os.path.join(names, 'nvovl-names.tsv'), encoding='utf-8') as fi, \
+                    open(ovl_names, 'w', encoding='utf-8') as fo:
+                for line in fi:
+                    if line.strip() and not line.startswith('#') and '\t' in line:
+                        fo.write('0000:' + line)
+            ok &= run(py, os.path.join(retools, 'dis16.py'), os.path.join(der, 'exe', 'NV.OVL'),
+                      '--names', ovl_names, '--out', os.path.join(lst, 'nvovl.lst'))
         elif part == 'vgm':
             if not has(py, 'unicorn'):
                 print('  skipped: %s has no unicorn (--python)' % py)

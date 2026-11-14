@@ -19,6 +19,27 @@ C prefix `ax_`/`AX_`, game profile and pack name `nova`). Successor of the Xenon
   tests: `make TARGET=host test`.
 - `re-tools/` — research tools (disassembly, emulation harnesses, verified reference models:
   `usdmodel.py` for the music sequencer, `gpc_verify.py`, `tcmtool.py`, `mesdis.py`, `mesgraph.py`).
+  The engine's test references: `advbios_emu.py` (AdvBIOS's own INT F1h/F3h/F6h code under
+  unicorn) and `nvovl_emu.py` (the original interpreter NV.OVL on it).
+- Annotated listings of NV.OVL, NV.OV1 and the plug-ins: `resources/derived/listing/` (made by
+  `gamedata.py derive listing`; names in `docs/re/listing/*.tsv`). The engine code cites their
+  addresses: read the handler there before changing engine behaviour.
+
+## Tests (`cd source && make TARGET=host test`, about 70 s)
+
+- `tests/run.sh` runs everything; data-free tests first, the rest skip with a note without the
+  imported game, the pack (`make pack`) or a Python with unicorn (`$EMU_PYTHON`).
+- Each check pairs a C test program (`tests/test_*.c`, linked with the engine objects) with a
+  Python comparer (`tests/check_*.py`) against a reference: `gpc.py`, `mes.py`, `usdmodel.py`
+  and the driver's recordings, AdvBIOS under emulation (`check_text`, `check_palette`), and the
+  original interpreter (`check_vm.py`: scenarios on the game's scripts plus synthetic test
+  scripts assembled in the check; memory, screen, DAC, text VRAM, saves, sound and palette calls
+  compared). New behaviour gets a `check_vm.py` scenario.
+- `tests/e2e/explore.py` plays headless (rotating menu and map choices); `tests/e2e/stories.sh`
+  plays all three stories and checks the unlock files.
+- Gotchas: rebuild the test binaries after engine changes (`make TARGET=host test` does, a bare
+  `make` does not relink `build/host/tests/*`); restoring a source within the same second as a
+  build can leave a stale object (touch it).
 - `resources/` — only our own tables are committed (`inventory.tsv`, `scripts.tsv`, `music/*.tsv`).
 
 ## Rules

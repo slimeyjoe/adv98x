@@ -23,7 +23,7 @@ Windows release of 1996 (`EVE.PCK`), the FM Towns CD of 1993, and the English tr
 | [other-versions.md](other-versions.md) | the Windows release (EVE engine, script format, differences) and the FM Towns release (AdvTowns, archives, script dialect), the song ↔ CD track table |
 | [usd-driver.md](usd-driver.md) | the music driver "USDdrv" inside AdvBIOS: layout, chip detection, the two timers, the INT F4h functions, fades, effect banks; §11 lists corrections to advbios.md |
 | [usd-sequencer.md](usd-sequencer.md) | the `.USO` song format and sequencer: file layout, per-tick algorithm, all commands, note tables, FM and SSG voices, LFOs, envelopes; per-song table |
-| [listing/](listing/) | name tables for `NV.OVL`, `NV.OV1` and the plug-ins. Disassembly listings are the game's code and are generated locally (`resources/derived/listing/`), never committed |
+| [listing/](listing/) | name tables for `NV.OVL`, `NV.OV1` and the plug-ins. Disassembly listings are the game's code and are generated locally (`gamedata.py derive listing` → `resources/derived/listing/`), never committed |
 
 ## Tools
 
@@ -48,7 +48,7 @@ usage in its header. Run them with `python3 -I`; the emulation harnesses need `c
 
 ```sh
 python3 -I source/tools/gamedata.py import PATH/TO/pc-98 PATH/TO/EVE.PCK "PATH/TO/Nova [TL-En by Fuzion].hdi"
-python3 -I source/tools/gamedata.py derive --python $EMU_PYTHON   # exe scripts images listing vgm
+python3 -I source/tools/gamedata.py derive --python $EMU_PYTHON   # exe scripts images listing vgm (+ .tsv logs)
 $EMU_PYTHON re-tools/gpc_verify.py        # pictures against the original decoder and the Windows files
 $EMU_PYTHON re-tools/usdmodel.py --check  # sequencer model against the original driver (about 2 min)
 ```
