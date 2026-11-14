@@ -5,8 +5,7 @@ before M0 done, **M0–M4 done** (2026-11-14); M5 mostly done (left: animation c
 sound, STOP-key prompt — none used by NOVA); **M6 done** (2026-11-14): every story and ending,
 both languages, played through the engine and the original interpreter with identical results
 (`make TARGET=host e2e`). **M7 done** (2026-11-14): reset key, volume, `--help`/`--version`,
-release archives, README; what remains is the user's play-testing (feel, music balance) and
-the later efforts listed under M7. Update the status line and tick milestones here as
+release archives, README; what remains is in "Open items (after M7)" below. Update the status line and tick milestones here as
 they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
@@ -229,6 +228,22 @@ quit/return-to-title key is added outside the script, as in Xenon), README, `mak
 separate later efforts: CD-DA option (track table `resources/music/cd-tracks.tsv` exists), Amiga
 family backends, Polish translation tooling, public-release cleanup.
 
+## Open items (after M7)
+
+Where a new session picks up; nothing here blocks playing the game.
+
+- **The user's play-test** of the SDL3 build (text speed, fades, music balance, the feel of
+  the mouse and the menus) — not done yet; findings become engine fixes with a `check_vm.py`
+  scenario where the original can be compared.
+- **Decisions left to the user:** the reset key (Ctrl+Shift+R was chosen because every other key
+  is a PC-98 key the game may read); whether the player's archive should carry a pack-building
+  kit (now it follows Xenon: no pack, the player builds it from the source tree); bundling SDL3
+  into a macOS release (the executable links it dynamically).
+- **M5 leftovers, unused by NOVA:** animation cells and lip-sync (C1–C5, INT F3h AH=08h–0Fh),
+  the beeper's sound, the STOP-key quit prompt, ACTE1's page commands on two pages.
+- **Later efforts (separate from this plan):** CD-DA option (`resources/music/cd-tracks.tsv`),
+  the Amiga family backends, Polish translation tooling, the pseudonymous public release.
+
 ## Verification
 
 - `cd source && make data SRC=<your copies>` then `make pack` — import, inventory check,
@@ -237,6 +252,8 @@ family backends, Polish translation tooling, public-release cleanup.
   produced from the original code or the verified Python tools, not against the engine itself.
 - `make TARGET=host e2e` — headless play of every route in both languages, compared with the
   original interpreter under emulation (about 15 minutes).
+- `make TARGET=sdl3 dist` — the player's archive; unpack it, put `nova.pak` next to `adv98x`,
+  run it (`--version`, `--help`).
 - `make TARGET=sdl3 && ../build/sdl3/adv98x --pak ../build/nova.pak [--lang en]` — manual play;
   the user's eyes and ears are the final check on feel (text speed, fades, music balance), with
   DOSBox-X / NP2 runs of the original as the comparison when a doubt needs settling.
@@ -320,7 +337,8 @@ Decisions taken while implementing, where the work refined or departed from the 
   model lives in `ax.mem` with the layout of `vm/mes.h` (no separate `mes_mem.c`).
 - *Unwinding.* The original's SP resets are `longjmp`s: mes-jump, exit and a quit go to the top
   level (`vm_run_game`), exit inside `mes-call` to the sub-script's level. Ending the main script
-  ends the game, as the original returns to DOS (M7 decides what the engine does then).
+  ends the game, as the original returns to DOS (the engine then quits; M7 added the reset
+  button, which unwinds the same way and starts the game again).
 - *Already in, though planned for M3:* menu and menu2 with mouse hover/click/cancel and the key
   steps, the click maps (`input`), saves (`flag-save`, `flag-load` full and merge, `save-check`),
   `name-load`, the built-in messages, the AdvBIOS mouse driver with its keyboard emulation, the
@@ -470,4 +488,6 @@ Decisions taken while implementing, where the work refined or departed from the 
   names in the tar headers. `make dist-src` is `git archive` of HEAD. The executable links SDL3
   dynamically (the player installs it); bundling SDL3 for macOS is left for the public
   release.
+- *Verified at the end of M7:* `make TARGET=host test` and `make TARGET=host e2e` (all ten
+  routes, both languages, identical to the original) pass.
 
