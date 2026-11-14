@@ -66,8 +66,13 @@ if [ -x "$EMU_PY" ] && "$EMU_PY" -c 'import unicorn' 2>/dev/null && [ -f "$OV1" 
         skip check_text "needs $PAK and its fonts (make pack)"
     fi
     run "$EMU_PY" -I "$HERE/check_palette.py" "$BIN/test_palette"
+    if [ -f "$PAK" ] && [ -f "$FONTS/k16.xfnt" ] && [ -f "$ROOT/resources/derived/exe/NV.OVL" ]; then
+        run "$EMU_PY" -I "$HERE/check_vm.py" "$BIN/test_vm" "$PAK" "$ORIGINAL" "$FONTS"
+    else
+        skip check_vm "needs $PAK, its fonts and the unpacked NV.OVL (make data, make pack)"
+    fi
 else
-    skip "check_text, check_palette" "need a Python with unicorn (EMU_PYTHON) and $OV1 (make data)"
+    skip "check_text, check_palette, check_vm" "need a Python with unicorn (EMU_PYTHON) and $OV1 (make data)"
 fi
 
 if [ $rc -eq 0 ]; then echo "ALL TESTS PASSED"; else echo "TESTS FAILED"; fi

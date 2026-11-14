@@ -20,7 +20,7 @@ What is real and what is modelled:
     7Ch mode (bit 7 on, bit 6 RMW vs TDW, bits 0..3 plane disable), port 7Eh the four tile
     registers in turn. RMW write: plane = (plane & ~data) | (tile & data); TDW: plane = tile.
     Reads without the GRCG return the plane byte. Text VRAM (A000/A200) is plain memory.
-  * Port 60h bit 5 (VSYNC) toggles on every read, so VSYNC waits end at once.
+  * Port 60h / A0h bit 5 (VSYNC) toggles on every read, so VSYNC waits end at once.
   * The palette ports A8h (index), AAh (green), ACh (red), AEh (blue) are recorded in
     `self.dac` (16 x [r, g, b]).
   * INT 18h AH=14h, the kanji ROM, answers from the pack's glyph tables (tools/xfont.py
@@ -155,7 +155,7 @@ class AdvBiosEmu:
         return None, 0
 
     def _in(self, uc, port, size, ud):
-        if port == 0x60:
+        if port in (0x60, 0xA0):             # GDC status: bit 5 VSYNC, toggling
             self.vsync ^= 0x20
             return self.vsync
         self.ports.append(('in', port))
@@ -186,7 +186,7 @@ class AdvBiosEmu:
             elif ah == 0x01:
                 uc.reg_write(X.UC_X86_REG_BX, uc.reg_read(X.UC_X86_REG_BX) & 0x00FF)
             return
-        if intno == 0x33:
+        if intno == 0x33 and 0x33 not in HANDLERS:
             if ax == 6:
                 uc.reg_write(X.UC_X86_REG_AX, self.right_button)
             return
@@ -201,7 +201,8 @@ class AdvBiosEmu:
             uc.reg_write(X.UC_X86_REG_CS, seg + BASE)
             uc.reg_write(X.UC_X86_REG_IP, off)
             return
-        raise RuntimeError('INT %02Xh AX=%04X not provided by the harness' % (intno, ax))
+        raise RuntimeError('INT %02Xh AX=%04X at %04X:%04X not provided by the harness'
+                           % (intno, ax, uc.reg_read(X.UC_X86_REG_CS), uc.reg_read(X.UC_X86_REG_IP)))
 
     def rom_glyph(self, jis):
         row, cell = (jis >> 8) & 0xFF, jis & 0xFF

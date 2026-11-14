@@ -224,13 +224,13 @@ choose:
         result = 0;
     }
 leave:
+    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_MENU, 1, result ? AX_LEAVE_SKIP : AX_LEAVE_KEY, 0);
+    sys_trace(AX_TR_MENU_SEL, 0, 0, result ? -1 : M[MES_VAR_S], kind, 0, 0);
     mouse_show(0);
     mouse_set_emulation(emu);
     for (i = 11; i-- > 0;)
         vm_wr16(saved_addr[i], saved[i]);
     vm_state_apply();
-    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_MENU, 1, result ? AX_LEAVE_SKIP : AX_LEAVE_KEY, 0);
-    sys_trace(AX_TR_MENU_SEL, 0, 0, result ? -1 : M[MES_VAR_S], kind, 0, 0);
     return result;
 }
 
