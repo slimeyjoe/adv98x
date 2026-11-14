@@ -219,7 +219,9 @@ unlock chain (a fresh storage shows only "start"; after `END` writes `FLAG3`/`FL
 menu entries appear), Sound and Graphic modes; golden screen hashes at fixed points; an SDL3
 offscreen presentation run. Routes come from `docs/re/script-catalog.md`.
 
-**M7 — Polish for a first release.** Options (`--lang`, `--scale`, `--fullscreen`, volumes), the
+**M7 — Polish for a first release.** (Starting point: the SDL3 build already has `--lang`,
+`--scale`, `--fullscreen`, `--window`, `--storage`, `--view`, F11/F12 and Shift+Esc; no volume
+options, no `make dist`; END's endless loop lets a frame pass every 1000 rounds, M6 notes.) Options (`--lang`, `--scale`, `--fullscreen`, volumes), the
 engine's own end-of-game behaviour where the original loops forever (kept as original; a system-level
 quit/return-to-title key is added outside the script, as in Xenon), README, `make dist`. Then, as
 separate later efforts: CD-DA option (track table `resources/music/cd-tracks.tsv` exists), Amiga

@@ -35,6 +35,7 @@ make TARGET=sdl3               # -> build/sdl3/adv98x
 ../build/sdl3/adv98x --pak ../build/nova.pak --view    # the picture viewer
 make TARGET=host test          # conformance tests (headless; the emulation references need
                                # a Python with unicorn, see docs/re/README.md "Tools")
+make TARGET=host e2e           # every story and ending, engine vs the original (~15 min)
 ```
 
 Options of the SDL3 build: `--lang ja|en`, `--fullscreen`, `--scale integer|aspect|fit|stretch`,

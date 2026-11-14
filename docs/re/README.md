@@ -41,7 +41,7 @@ usage in its header. Run them with `python3 -I`; the emulation harnesses need `c
 | `re-tools/dis16.py`, `advbios_map.py`, `tcmtool.py` | 16-bit disassembler with name files; label transfer from Valley Bell's listing; plug-in listings and emulation harness | — |
 | `re-tools/evedis.py`, `evecmp.py`, `cdimg.py` | Windows scripts, release comparison, Towns CD image and archives | 118 Windows scripts fully covered |
 | `re-tools/advbios_emu.py` | AdvBIOS's own INT F1h/F3h/F6h code under emulation (GRCG, DAC ports, kanji ROM modelled), the reference for the engine's text and palette tests | the engine's `check_text.py`, `check_palette.py` |
-| `re-tools/nvovl_emu.py` | the original interpreter NV.OVL on the original AdvBIOS under emulation (files, keys, clicks and the plug-ins' DOS memory modelled): scripts run as on the PC-98 | the engine's `check_vm.py` compares memory, screen, DAC, saves and sound calls with it |
+| `re-tools/nvovl_emu.py` | the original interpreter NV.OVL on the original AdvBIOS under emulation (files, keys, clicks and the plug-ins' DOS memory modelled): scripts run as on the PC-98 | the engine's `check_vm.py` compares memory, screen, DAC, saves and sound calls with it, up to whole stories (`stop_save=`: end after a given save) |
 | `re-tools/usoinfo.py`, `usdemu.py`, `usdmodel.py` | song dump, original driver under emulation (VGM recordings), clean-room sequencer model | model = original on every register write: 28 files in play, fade, stop and chained scenarios plus synthetic songs (5.7 M writes) |
 
 ## Regenerating
