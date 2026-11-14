@@ -1,11 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* ACTE1.TCM: screen blocks (docs/re/plugins.md §6, §7.5). Commands are recognised by their first
  * letter, operands are unsigned decimal, `,` joins commands. x and w in byte columns, y and h in
- * lines; all four planes of the current drawing page. Done: INIT, GET, PUT, FREE, OVER, VIEW,
- * WAIT, EXIT, HALT (no-op); SHOW, ACCE, COPY, MOVE, LOAD arrive with M5. */
+ * lines; all four planes of the current drawing page. All commands; HALT (a debugging screen)
+ * is a no-op. NOVA uses INIT, GET, PUT and FREE. */
 #include <string.h>
 #include "ax_internal.h"
 #include "gfx/gfx.h"
+#include "bios/bios.h"
 #include "mod/mod.h"
 
 #define SLOTS 64
@@ -125,6 +126,109 @@ static void put(unsigned n, unsigned x, unsigned y)
     gfx_mark_dirty(ax.access_page, (int)x, (int)y, (int)(x + w), (int)(y + h));
 }
 
+/* a rectangle of `page` (byte columns, lines) into `buf`, plane after plane, no clipping */
+static void grab(int page, unsigned x, unsigned y, unsigned w, unsigned h, uint8_t *buf)
+{
+    unsigned p, r, c, k = 0;
+    for (p = 0; p < 4; p++)
+        for (r = 0; r < h; r++)
+            for (c = 0; c < w; c++) {
+                uint32_t off = ((y + r) * 80u + x + c) & 0xFFFF;
+                buf[k++] = off < AX_PLANE_BYTES ? ax.page[page].p[p][off] : 0;
+            }
+}
+
+/* `buf` to `page` at (x, y); overlay: source colour 0 keeps the destination */
+static void drop(int page, unsigned x, unsigned y, unsigned w, unsigned h, const uint8_t *buf)
+{
+    unsigned p, r, c;
+    for (r = 0; r < h; r++)
+        for (c = 0; c < w; c++) {
+            uint32_t off = ((y + r) * 80u + x + c) & 0xFFFF;
+            uint8_t m = 0xFF;
+            if (off >= AX_PLANE_BYTES)
+                continue;
+            if (st.over) {
+                m = 0;
+                for (p = 0; p < 4; p++)
+                    m |= buf[((uint32_t)p * h + r) * w + c];
+            }
+            for (p = 0; p < 4; p++) {
+                uint8_t *d = &ax.page[page].p[p][off];
+                *d = (uint8_t)((*d & ~m) | (buf[((uint32_t)p * h + r) * w + c] & m));
+            }
+        }
+    gfx_mark_dirty(page, 0, (int)y, AX_PLANE_STRIDE, (int)(y + h + 1));
+}
+
+static void copy(unsigned sp, unsigned x, unsigned y, unsigned w, unsigned h, unsigned dp,
+                 unsigned x2, unsigned y2)
+{
+    uint8_t *buf;
+    uint32_t size = (uint32_t)w * h * 4u;
+    if (sp > 1 || dp > 1 || x > 80 || y > 400 || (uint32_t)w * h >= 16384u) {
+        fail("COPY", "Overspec number");
+        return;
+    }
+    buf = sys_alloc(size ? size : 1);
+    grab((int)sp, x, y, w, h, buf);
+    drop((int)dp, x2, y2, w, h, buf);
+    sys_free(buf, size ? size : 1);
+    st.acce = (int)dp;                          /* COPY leaves the drawing page at dp */
+    gfx_set_access_page((int)dp);
+}
+
+/* MOVE: within the drawing page, plane by plane, rows top to bottom, bytes left to right */
+static void move(unsigned x, unsigned y, unsigned w, unsigned h, unsigned x2, unsigned y2)
+{
+    struct ax_planes *pg = gfx_access();
+    unsigned p, r, c;
+    if (x >= 80 || x2 >= 80 || y >= 400 || y2 >= 400 || (uint32_t)w * h >= 16384u) {
+        fail("MOVE", "Overspec number");
+        return;
+    }
+    for (p = 0; p < 4; p++)
+        for (r = 0; r < h; r++)
+            for (c = 0; c < w; c++) {
+                uint32_t so = ((y + r) * 80u + x + c) & 0xFFFF, d = ((y2 + r) * 80u + x2 + c) & 0xFFFF;
+                uint8_t m = 0xFF, v;
+                unsigned q;
+                if (so >= AX_PLANE_BYTES || d >= AX_PLANE_BYTES)
+                    continue;
+                v = pg->p[p][so];
+                if (st.over) {
+                    m = 0;
+                    for (q = 0; q < 4; q++)
+                        m |= pg->p[q][so];
+                }
+                pg->p[p][d] = (uint8_t)((pg->p[p][d] & ~m) | (v & m));
+            }
+    gfx_mark_dirty(ax.access_page, 0, (int)y2, AX_PLANE_STRIDE, (int)(y2 + h + 1));
+}
+
+/* LOAD: a GPC picture by name (the next token, at most 40 characters), drawn at its own
+ * position into the drawing page with its palette (flags 3), colour 0 transparent in overlay
+ * mode; a read error is not checked: the buffer is drawn as it is */
+static void load(const uint8_t **pp)
+{
+    char name[41];
+    unsigned n = 0;
+    uint32_t cap;
+    uint8_t *buf = bg_picture_buffer(&cap);
+    long len;
+    const uint8_t *p = *pp;
+    while (*p == ' ' || *p == '\t')
+        p++;
+    while (*p && *p != ' ' && *p != ',' && *p != '"' && n < 40)
+        name[n++] = (char)*p++;
+    name[n] = 0;
+    *pp = p;
+    len = bios_file_load(name, buf, cap);
+    if (len >= 0)
+        ax.bios.piclen = (uint32_t)len;
+    bg_draw_gpc(buf, ax.bios.piclen, 0xFFFF, 0xFFFF, st.over, 3);
+}
+
 static unsigned long acte1_exec(const uint16_t *args, int nargs)
 {
     const uint8_t *p;
@@ -177,14 +281,54 @@ static unsigned long acte1_exec(const uint16_t *args, int nargs)
             while (a--)
                 sys_frame_wait();
             break;
+        case 's':
+            a = number(&p);
+            if (a > 1) {
+                fail("SHOW", "Overspec number");
+                break;
+            }
+            st.show = (int)a;
+            sys_frame_wait();                   /* wait for the start of a VSYNC */
+            gfx_set_display_page((int)a);
+            break;
+        case 'a':
+            a = number(&p);
+            if (a > 1) {
+                fail("ACCE", "Overspec number");
+                break;
+            }
+            st.acce = (int)a;
+            gfx_set_access_page((int)a);
+            break;
+        case 'c': {
+            unsigned f, g, hh;
+            a = number(&p); b = number(&p); cc = number(&p); d = number(&p); e = number(&p);
+            f = number(&p); g = number(&p); hh = number(&p);
+            if (st.error)
+                return 0xFF00;
+            copy(a, b, cc, d, e, f, g, hh);
+            break;
+        }
+        case 'm': {
+            unsigned f;
+            a = number(&p); b = number(&p); cc = number(&p); d = number(&p); e = number(&p);
+            f = number(&p);
+            if (st.error)
+                return 0xFF00;
+            move(a, b, cc, d, e, f);
+            break;
+        }
+        case 'l':
+            if (st.error)
+                return 0xFF00;
+            load(&p);
+            break;
         case 'e':
             drop_slots();
             return 0xFF00;
         case 'h':
             return 0xFF00;
         default:
-            if (c == 's' || c == 'a' || c == 'c' || c == 'm' || c == 'l')
-                sys_log(AX_LOG_WARN, "ACTE1: command %c not implemented yet (M5)", c);
             return 0xFF00;
         }
         if (st.error)

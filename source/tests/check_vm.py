@@ -118,7 +118,20 @@ def curtain_script():
     return s + END
 
 
+def acte1_script():
+    a = lambda cmd: op(0xCD, 256, cmd)
+    s = op(0xC8, 'ACTE1.TCM', 256) + a('INIT') + SHOW_NV01
+    s += a('COPY 0 10 50 20 40 0 50 200')          # within page 0 (the harness has one page)
+    s += a('MOVE 5 100 10 30 8 110')                # overlapping: smears
+    s += a('OVER 1,LOAD \\GPC\\NV19.GPC,OVER 0')     # a picture, colour 0 transparent
+    s += a('GET 3 0 0 10 10,OVER 1,PUT 3 40 300,FREE 3,OVER 0')
+    s += a('VIEW 10 10 60 300,GET 4 0 0 20 20,PUT 4 5 5,PUT 4 70 390,WAIT 3')
+    s += a('GET 5 2 2 4 4, put 5 70 200,fREE 5')    # first letters only, any case
+    return s + END
+
+
 SYNTHETIC = {
+    'acte1': ('ja', [], [], acte1_script),
     'curtain': ('ja', [], [], curtain_script),
     'palch': ('ja', [], [], palch_script),
     'whiteh': ('ja', [], [], whiteh_script),
