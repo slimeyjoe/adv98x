@@ -1,7 +1,8 @@
 # Adv98X — a new engine for Adv98V 1.70.54 games (first game: NOVA)
 
 The implementation plan, approved 2026-11-14. Status: research (phase 1) complete, housekeeping
-before M0 done, **M0 not started**. Update the status line and tick milestones here as they land.
+before M0 done, **M0 done** (2026-11-14), M1 next. Update the status line and tick milestones here as
+they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
 
@@ -170,7 +171,7 @@ top; `opn_lite_68k.s` keeps its BSD-2 header, `opn_lite.c` its ymfm attribution.
 
 Each milestone ends with its tests passing and a commit; the game is runnable from M2 on.
 
-**M0 — Skeleton.** Copy the platform layer, rename to `ax_`, GPL-3 headers and `LICENSE`, top-level
+**M0 — Skeleton.** ✔ Copy the platform layer, rename to `ax_`, GPL-3 headers and `LICENSE`, top-level
 `README.md`, `docs/game-data.md`. `Makefile` targets `data` (import + derive), `pack`, `test`,
 `clean`, `data-clean`, `distclean`; `TARGET=host|sdl3`. `mkpack.py` builds `build/nova.pak` from
 `resources/original/`: scripts per language, pictures (stored as original GPC, deduplicated by
@@ -239,3 +240,40 @@ family backends, Polish translation tooling, public-release cleanup.
 - `gamedata.py derive` reproduces everything derived (unpacked executables, script exports, PNGs,
   plug-in listings, VGM reference recordings); the dump owner's `FLAG*` / `NAME.DEF` are marked in
   `resources/inventory.tsv` as test inputs that must never be packed.
+
+## Implementation notes
+
+Decisions taken while implementing, where the work refined or departed from the text above.
+
+**M0 (2026-11-14)**
+
+- *Input model.* `struct ax_input` is the PC-98 keyboard, not Xenon's command bits: key presses as
+  (scan code, character code) pairs, as the BIOS key buffer holds them, plus the key-down bitmap
+  (0000:052A) that AdvBIOS's keyboard mouse emulation and the STOP check read. Menus test scan
+  codes, INPUTNAM tests character codes (docs/re/interpreter.md §4, plugins.md §5.3), so the
+  engine keeps the original's view and the backends translate host keys. The mouse is absolute
+  (`mouse_x/y` in 640×400 space, buttons as levels plus press edges); `mouse_warp` is optional.
+  The control protocol has `press` (named keys, clicks), `key SCAN CHR`, `hold`, `mouse X Y`;
+  autoplay's ranges are `ctrl:`, `shift:`, `button_r:`.
+- *Time.* The 20 ms tick is derived exactly: every frame adds 5000 to an accumulator and every
+  5642 in it is a tick (50 / 56.42). Frame and tick hooks replace Xenon's hard-wired blink/voice.
+- *Trace kinds* are this engine's: script, op, text, menu, menu_sel, wait (key, ticks, menu,
+  click, name, prompt), picture, palette, sound, save, load, module, flag, error, quit.
+- *Storage records* keep the original file names (`FLAG0`, `NAME.DEF`) as file names in the
+  storage directory, so PC-98 saves can be dropped in.
+- *Not copied now:* `p2c`/`scale` (only the Amiga backend uses them; they come with it), the
+  sound files (with M4, together with the sequencer they are adapted to), `font.c`/`enc.c`/
+  `overlay.c` (with M1's text services, where they are adapted). `ptest` (the synthetic
+  presentation sequence) is kept for the null backend's `--present-test`.
+- *Pack.* The "default name" item of M0 is dropped: INPUTNAM's default comes from the script's
+  argument (plugins.md §5), nothing to pack. NV.INI is not packed. The English script set is
+  completed at pack time with the Japanese scripts it does not replace (`RUN`), so a lookup never
+  falls back across languages. The profile is a `profile` meta entry; `mkpack.py --game nova`
+  holds NOVA's values (title, start script, modules, the `NV43A` disk choice).
+- *Picture viewer.* `--view [PICTURE]` browses the pack's pictures as AdvBIOS draws them (opaque
+  at the file's position, its palette at brightness 15) — the M0 check, and a tool afterwards.
+  The C GPC decoder (`gfx/gpc.c`) is already the full port of `gpc.py`; M1 adds its test over
+  all files and the palette-flag/position semantics of the service.
+- *Tests* so far: `check_pack.py` (the C reader against `xpak.py`, every packed game file
+  against the inventory md5s, nothing "never packed" in the pack) and the presentation smoke
+  run.

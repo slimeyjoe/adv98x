@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """advbios_map - carry Valley Bell's labels for AdvBIOS 0.54 over to NOVA's NV.OV1.
 
 Valley Bell's annotated IDA disassembly (Adv98V/DengekiNurse/ADVBIOS.DEC2.asm,

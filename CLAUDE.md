@@ -12,8 +12,11 @@ C prefix `ax_`/`AX_`, game profile and pack name `nova`). Successor of the Xenon
   **Read the relevant document before writing engine code; they are the specification.**
 - `docs/engine-plan.md` — the approved implementation plan (architecture, what is copied from
   Xenon, milestones M0–M7, verification) with the current status at its top.
-- `source/tools/` — build-side Python (stdlib only): `gamedata.py` (import/check/derive),
-  `diskimg.py`, `mes.py` (script parser), `gpc.py` (picture decoder). The engine goes in `source/`.
+- `source/` — the engine (`engine/`, `hal/`, `backends/`, `Makefile`, `tests/`) and the
+  build-side Python in `source/tools/` (stdlib only): `gamedata.py` (import/check/derive),
+  `diskimg.py`, `mes.py` (script parser), `gpc.py` (picture decoder), `mkpack.py` / `xpak.py`
+  (the pack), `xfont.py` (fonts). Build: `cd source && make pack && make TARGET=sdl3`;
+  tests: `make TARGET=host test`.
 - `re-tools/` — research tools (disassembly, emulation harnesses, verified reference models:
   `usdmodel.py` for the music sequencer, `gpc_verify.py`, `tcmtool.py`, `mesdis.py`, `mesgraph.py`).
 - `resources/` — only our own tables are committed (`inventory.tsv`, `scripts.tsv`, `music/*.tsv`).

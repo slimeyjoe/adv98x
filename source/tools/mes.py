@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Adv98V 1.70.54 .MES script parser (stdlib only).
 
 The grammar follows the interpreter (NV.OVL, docs/re/mes-format.md): every operand is read the

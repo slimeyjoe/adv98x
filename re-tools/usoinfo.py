@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """usoinfo.py - structure dump of .USO song files (USDdrv / USDtrap, K.KONDO 1991, the
 YM2203 music driver inside AdvBIOS 0.54; see docs/re/usd-sequencer.md).
 

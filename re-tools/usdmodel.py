@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """usdmodel.py - clean-room Python model of NOVA's music driver (USDdrv / USDtrap V01.02:
 the .USO sequencer for the YM2203), written from docs/re/usd-driver.md and
 docs/re/usd-sequencer.md - not from the disassembly.  It produces the same stream of OPN

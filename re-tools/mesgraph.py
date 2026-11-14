@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Script catalogue of an Adv98V game: transition graph, per-script summary, reachability and
 asset checks (research tool; parser: source/tools/mes.py; findings: docs/re/script-catalog.md,
 docs/re/disks.md).

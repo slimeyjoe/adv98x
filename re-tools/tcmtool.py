@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """tcmtool - listings and emulation runs for NOVA's machine-code plug-ins (*.TCM).
 
   tcmtool.py list [--names docs/re/listing/tcm-names.tsv]

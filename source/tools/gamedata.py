@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The original game data: import it from your copies of the releases and check it.
 
 The repository carries none of the game (Cat's Pro, 1993). `import` reads the files from the

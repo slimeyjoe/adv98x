@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """usdemu.py - run NOVA's original music driver (USDdrv / USDtrap V01.02, K.KONDO 1991,
 segment 0328 of AdvBIOS 0.54 = NV.OV1) under the unicorn CPU emulator against a fake
 PC-9801-26K board (YM2203), and record every OPN register write (VGM + TSV).

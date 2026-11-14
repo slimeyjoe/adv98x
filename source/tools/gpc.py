@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """GPC picture decoder (PC-98 "PC98)GPCFILE" format, as used by NOVA / Adv98V 1.70).
 
 A GPC file holds one 16-colour picture (4 bit planes), an optional 16-entry

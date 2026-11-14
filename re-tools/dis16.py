@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """dis16 - small reusable 16-bit real-mode disassembly helper (capstone based).
 
 Loads a plain (unpacked) MZ executable at load base 0 -- relocations are *not*

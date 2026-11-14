@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Unpack Adv98V executables: Ides "TC0" encryption layers, then Microsoft EXEPACK.
 
 Usage:  python3 -I re-tools/exeunpack.py IN.OVL OUT.EXE [--keep-stages DIR]

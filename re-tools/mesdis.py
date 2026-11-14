@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Adv98V .MES script lister / checker / exporter (research tool; parser: source/tools/mes.py).
 
   python3 -I re-tools/mesdis.py list FILE...            # structured listing on stdout
