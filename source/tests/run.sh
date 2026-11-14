@@ -75,6 +75,14 @@ if [ -n "$HAVE_GAME" ] && [ -f "$PAK" ]; then
     echo "== render smoke: NV01 through the game's sound path"
     "$BUILD/adv98x" --pak "$PAK" --render-wav "$BIN/nv01.wav" --song NV01 --seconds 4 2>/dev/null &&
         $PY -I -c 'import sys,wave,struct; w=wave.open(sys.argv[1]); n=w.getnframes(); d=struct.unpack("<%dh"%n,w.readframes(n)); p=max(abs(x) for x in d); print("render: %d frames at %d Hz, peak %d" % (n, w.getframerate(), p)); sys.exit(0 if p > 1000 and n > 3*w.getframerate() else 1)' "$BIN/nv01.wav" || rc=1
+    # --volume scales every sample by v/100 (as v*256/100 / 256, truncated toward zero)
+    "$BUILD/adv98x" --pak "$PAK" --render-wav "$BIN/nv01-30.wav" --song NV01 --seconds 4 --volume 30 2>/dev/null &&
+        $PY -I -c 'import sys,wave,struct
+def rd(f):
+    w=wave.open(f); n=w.getnframes(); return struct.unpack("<%dh"%n,w.readframes(n))
+a,b=rd(sys.argv[1]),rd(sys.argv[2]); g=30*256//100
+bad=sum(1 for x,y in zip(a,b) if y!=int(x*g/256))
+print("render --volume 30: %d samples, %d not scaled by %d/256" % (len(b), bad, g)); sys.exit(0 if len(a)==len(b) and not bad else 1)' "$BIN/nv01.wav" "$BIN/nv01-30.wav" || rc=1
     run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" ja
     run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" en
     # the SDL3 backend's presentation, offscreen (when it is built: make TARGET=sdl3)

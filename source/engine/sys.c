@@ -127,6 +127,8 @@ static void poll_input(void)
         ax.quit_requested = 1;
     if (in.events & AX_EV_EMERGENCY)
         ax.emergency_quit = 1;
+    if (in.events & AX_EV_RESET)
+        ax.reset_requested = 1;
     /* the pointer: an absolute host position wins when it moved, else relative motion */
     if (in.mouse_abs) {
         if (!ax.in.mouse_abs || in.mouse_x != ax.in.mouse_x || in.mouse_y != ax.in.mouse_y) {
@@ -148,7 +150,12 @@ static void poll_input(void)
 
 int sys_quitting(void)
 {
-    return ax.quit_requested || ax.emergency_quit;
+    return ax.quit_requested || ax.emergency_quit || ax.reset_requested;
+}
+
+int sys_resetting(void)
+{
+    return ax.reset_requested && !ax.quit_requested && !ax.emergency_quit;
 }
 
 int sys_key_sense(void)
@@ -165,6 +172,12 @@ unsigned sys_key_read(void)
     ax.khead = (ax.khead + 1) % AX_KEYQ;
     ax.kcount--;
     return ((unsigned)k.scan << 8) | k.chr;
+}
+
+void sys_reset_input(void)
+{
+    ax.reset_requested = 0;
+    sys_key_flush();
 }
 
 void sys_key_flush(void)

@@ -65,6 +65,10 @@ def main():
     ap.add_argument('--until-save', help='stop when the game writes this record (e.g. FLAG3)')
     ap.add_argument('--title-pick', type=int, default=0,
                     help='the item to take in the first menu (the title): 1 = 2nd story, ...')
+    ap.add_argument('--chain', metavar='SAVE:PICK,..',
+                    help='stories in turn in one run: when the game writes SAVE (the unlock '
+                         'file; the ending then loops for ever) press the reset button and take '
+                         'title item PICK of the next stage; ends with the last SAVE')
     ap.add_argument('--choose', action='append', default=[], metavar='SCRIPT=N',
                     help='take item N in every menu of SCRIPT')
     ap.add_argument('--record', help='write the input given as JSON (PC-98 keys and clicks)')
@@ -72,6 +76,10 @@ def main():
     ap.add_argument('-v', action='store_true')
     a = ap.parse_args()
     choose = {k.upper(): int(v) for k, v in (c.split('=') for c in a.choose)}
+    stages = [(c.split(':')[0], int(c.split(':')[1])) for c in a.chain.split(',')] if a.chain else []
+    if stages:
+        a.until_save, a.title_pick = stages[0]
+    stage, resets, reset_due = 0, 0, False
     record = []
     storage = a.storage or tempfile.mkdtemp(prefix='adv98x-explore-')
     p = subprocess.Popen([a.exe, '--pak', a.pak, '--lang', a.lang, '--control', '--storage',
@@ -79,6 +87,8 @@ def main():
                          stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                          text=True)
     send = lambda c: (p.stdin.write(c + '\n'), p.stdin.flush())
+    if stages:
+        send('break save')                      # the ending writes the unlock file, then spins
     visits = collections.Counter()
     seen, script, clickmap = [], None, []
     plan = []                                   # keys still to press for the current choice
@@ -98,8 +108,17 @@ def main():
                 reached = True
                 break
         elif k == 'save' and a.until_save and ev.get('name') == a.until_save:
+            if stage + 1 < len(stages):
+                stage += 1
+                a.until_save, a.title_pick = stages[stage]
+                reset_due = True
+                continue
             reached = True
             break
+        elif k == 'reset':                      # the game starts anew: the title comes first
+            resets += 1
+            visits.clear()
+            plan, menu, clickmap = [], None, []
         elif k == 'load' and ev['a'][0] == -1:
             clickmap = regions(a.original, ev['name'])
         elif k == 'wait' and ev['a'][1] == 0 and ev['a'][0] == 2:        # a menu starts
@@ -112,7 +131,10 @@ def main():
             visits[menu] += 1
             plan = ['right'] * n + ['ok']
         elif k == 'stop':
-            if ev['why'] == 'blocked':
+            if reset_due:
+                send('press reset')
+                reset_due = False
+            elif ev['why'] == 'blocked':
                 w = ev['wait']
                 if w == 2 and plan:
                     press = plan.pop(0)
@@ -137,9 +159,11 @@ def main():
         json.dump(record, open(a.record, 'w'))
     if a.route_file:
         open(a.route_file, 'w').write(''.join(s + '\n' for s in route))
-    print('explore (%s): %s %s after %d frames; %d scripts entered, %d distinct' % (
+    print('explore (%s): %s %s after %d frames; %d scripts entered, %d distinct%s' % (
         a.lang, 'reached' if reached else 'did not reach', a.until_save or base(a.until), t, len(seen),
-        len(set(seen))))
+        len(set(seen)), ', %d resets' % resets if stages else ''))
+    if stages and resets != len(stages) - 1:
+        reached = False
     if not a.v:
         print('  ' + ' '.join(route[:60]) + (' ...' if len(route) > 60 else ''))
     return 0 if reached else 1

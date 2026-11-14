@@ -9,6 +9,7 @@
 #include "gfx/planes.h"
 
 void gfx_init(void);
+void gfx_reset(void);                            /* as at start-up (the reset button) */
 void gfx_shutdown(void);
 
 /* pages and the graphics layer */

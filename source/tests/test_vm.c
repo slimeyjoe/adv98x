@@ -1,7 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* test_vm PAK STORAGE LANG KEYS: the whole engine on a pack, input from KEYS (comma-separated
- * hex words SSCC: PC-98 scan code and character, "-" for none). A key is given only while the
- * engine waits for input; when it waits and no key is left, or when the game ends, the state is
+ * hex words SSCC: PC-98 scan code and character, "-" for none; "RESET" presses the reset
+ * button, after which the logs below start again). A key is given only while the engine waits
+ * for input; when it waits and no key is left, or when the game ends, the state is
  * printed and the program exits (also, with TEST_VM_STOP_SAVE=NAME, right after the game writes
  * the record NAME: END writes its unlock file and then loops for ever):
  *   end exit|starved|save
@@ -21,7 +22,8 @@
 #include "gfx/textlayer.h"
 
 static const char *g_storage;
-static unsigned g_keys[8192];                 /* SSCC, or 0x10000000 | x << 12 | y for a click */
+static unsigned g_keys[8192];                 /* SSCC, or 0x10000000 | x << 12 | y for a click,
+                                               * 0x20000000 Return up to a click map, 0x30000000 reset */
 static int g_nkeys, g_next;
 static int g_in_wait, g_wait_polls, g_wait_kind;
 static uint32_t g_frames;
@@ -79,6 +81,10 @@ static void tv_trace(const struct ax_trace_event *ev)
         dump("save");
         exit(0);
     }
+    if (ev->kind == AX_TR_RESET) {              /* compared from here: the game as started anew */
+        g_nsound = g_npal = 0;
+        g_in_wait = 0;
+    }
     if (getenv("TEST_VM_DEBUG") && (ev->kind == AX_TR_MENU_SEL || ev->kind == AX_TR_SCRIPT ||
                                     (ev->kind == AX_TR_WAIT && ev->a0 != AX_WAIT_TICKS)))
         fprintf(stderr, "ev %d %s a %d %d %d frame %lu\n", ev->kind, ev->name ? ev->name : "", ev->a0,
@@ -113,6 +119,12 @@ static void tv_poll(struct ax_input *in)
     memset(in, 0, sizeof *in);
     if (!g_in_wait)
         return;
+    if (g_next < g_nkeys && (g_keys[g_next] >> 28) == 3) {
+        in->events = AX_EV_RESET;
+        g_next++;
+        g_wait_polls = 0;
+        return;
+    }
     if (g_next < g_nkeys && (g_keys[g_next] >> 28) == 2) {
         if (g_wait_kind == AX_WAIT_CLICK) {
             g_next++;                           /* R*: up to the click-map wait */
@@ -206,6 +218,8 @@ int main(int argc, char **argv)
     for (k = strtok(argv[4], ","); k && g_nkeys < 8192; k = strtok(0, ","))
         if (!strcmp(k, "R*")) {
             g_keys[g_nkeys++] = 0x20000000u;
+        } else if (!strcmp(k, "RESET")) {
+            g_keys[g_nkeys++] = 0x30000000u;
         } else if (k[0] == 'C') {
             unsigned x = 0, y = 0;
             sscanf(k, "C:%u:%u", &x, &y);

@@ -10,9 +10,10 @@
 
 void snd_init(void);
 void snd_shutdown(void);
+void snd_reset(void);                   /* the machine's reset: silence, the driver as at start */
 void snd_pump(void);                    /* push mode: render what the sink can take */
-struct usd *snd_usd(void);
-uint32_t snd_rate(void);                /* the output rate, 0 without audio */              /* the sequencer, for bios_snd.c (lock held) */
+struct usd *snd_usd(void);              /* the sequencer, for bios_snd.c (lock held) */
+uint32_t snd_rate(void);                /* the output rate, 0 without audio */
 void snd_lock(void);
 void snd_unlock(void);
 

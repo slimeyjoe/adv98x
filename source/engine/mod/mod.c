@@ -28,6 +28,9 @@ void mod_init(const char *list)
     int i;
     nbound = 0;
     memset(enabled, 0, sizeof enabled);
+    for (i = 0; i < NALL; i++)          /* a fresh start (also after a reset): nothing loaded */
+        if (all[i]->load)
+            all[i]->load();
     while (list && *list) {
         char w[32];
         size_t n = strcspn(list, ",");

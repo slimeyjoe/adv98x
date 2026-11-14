@@ -20,6 +20,14 @@ void gfx_init(void)
         ax.page[0].p[p] = ax.planemem + (0 * 4 + p) * AX_PLANE_BYTES;
         ax.page[1].p[p] = ax.planemem + (1 * 4 + p) * AX_PLANE_BYTES;
     }
+    gfx_reset();
+}
+
+/* the state at start-up: both pages clear, page 0 shown and accessed, graphics on, the default
+ * palette at full brightness */
+void gfx_reset(void)
+{
+    memset(ax.planemem, 0, 2 * 4 * AX_PLANE_BYTES);
     ax_rect_clear(&ax.dirty[0]);
     ax_rect_clear(&ax.dirty[1]);
     ax.access_page = 0;

@@ -36,9 +36,11 @@ C prefix `ax_`/`AX_`, game profile and pack name `nova`). Successor of the Xenon
   scripts assembled in the check; memory, screen, DAC, text VRAM, saves, sound and palette calls
   compared). New behaviour gets a `check_vm.py` scenario.
 - `tests/e2e/explore.py` plays headless (rotating menu and map choices, `--choose` fixes story
-  choices, `--record` keeps the input); `tests/e2e/stories.sh` plays all three stories and checks
-  the unlock files; `tests/e2e/present.py` checks the SDL3 backend's rendering offscreen (runs
+  choices, `--record` keeps the input, `--chain` plays stories in turn with a reset after each
+  ending); `tests/e2e/stories.sh` plays all three stories in one run and checks the unlock files; `tests/e2e/present.py` checks the SDL3 backend's rendering offscreen (runs
   when `make TARGET=sdl3` was built).
+- `make TARGET=sdl3 dist` makes the player's archive (no pack), `make dist-src` the source one;
+  the version is `engine/version.h`.
 - `make TARGET=host e2e` (about 15 minutes): `check_vm.py`'s routes, every story and ending in
   both languages played through the engine and the original interpreter, compared at the
   unlock save.

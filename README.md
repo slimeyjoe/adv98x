@@ -13,8 +13,7 @@ text, palette effects, menus, click maps, saves, name entry and the FM music. Ve
 the original interpreter and AdvBIOS running under emulation: every story and all five endings,
 in both languages, play to the same memory, screen, saves and sound calls as the original
 (`make TARGET=host e2e`). Not yet tuned by ear and eye (music balance, timing feel). Still
-missing: features NOVA does not use (animation cells, beeper, the STOP-key quit prompt) and the
-release polish (docs/engine-plan.md, M7).
+missing: features NOVA does not use (animation cells, beeper, the STOP-key quit prompt).
 
 ## You need the game
 
@@ -38,13 +37,32 @@ make TARGET=host test          # conformance tests (headless; the emulation refe
 make TARGET=host e2e           # every story and ending, engine vs the original (~15 min)
 ```
 
-Options of the SDL3 build: `--lang ja|en`, `--fullscreen`, `--scale integer|aspect|fit|stretch`,
-`--window WxH`, `--storage DIR`, `--view [PICTURE]`. Keys: the host keyboard is the PC-98's
-(Return, Space, Esc, cursor keys, Shift, Ctrl, …); the Kana key of a JIS keyboard or Scroll Lock
-toggles kana input (the JIS kana layout, for name entry); F11 or Alt+Return toggles fullscreen,
-F12 cycles the scaling, Shift+Esc quits at once.
+Options of the SDL3 build (`adv98x --help`): `--lang ja|en`, `--fullscreen`,
+`--scale integer|aspect|fit|stretch`, `--window WxH`, `--volume 0..100`, `--no-audio`,
+`--storage DIR`, `--pak FILE`, `--view [PICTURE]`, `--version`. Keys: the host keyboard is the
+PC-98's (Return, Space, Esc, cursor keys, Shift, Ctrl, …); the Kana key of a JIS keyboard or
+Scroll Lock toggles kana input (the JIS kana layout, for name entry); F11 or Alt+Return toggles
+fullscreen, F12 cycles the scaling, **Ctrl+Shift+R resets** (the game starts again at its title,
+saves kept: the way out of an ending, which loops for ever as on the PC-98), Shift+Esc quits at
+once.
+
+Without `--pak` the program looks for the pack bundled into itself, then `nova.pak` next to it,
+then in the current directory. Saves are the original's `FLAG0`–`FLAG9` and `NAME.DEF` in
+`$XDG_DATA_HOME/adv98x/nova` (docs/game-data.md "Saves").
+
+## Release archives
+
+```sh
+make TARGET=sdl3 dist    # ../build/sdl3/adv98x-<version>-sdl3-<os>-<arch>.tar.gz: the stripped
+                         # executable, the player's ReadMe, the licences; no game data
+make dist-src            # ../build/adv98x-<version>-src.tar.gz: the committed tree (git archive)
+```
+
+The version is `source/engine/version.h`. The player's ReadMe is
+`source/backends/sdl3/ReadMe.txt`.
 
 ## Licence
 
 GPL-3.0-or-later ([`LICENSE`](LICENSE)). Bundled third-party material keeps its own licence: the
-X.Org bitmap fonts in `source/fonts/x11` (see its README).
+X.Org bitmap fonts in `source/fonts/x11` (see its README) and ymfm, the OPN emulator, in
+`source/third_party/ymfm` (BSD 3-Clause).

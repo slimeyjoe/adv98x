@@ -49,6 +49,8 @@ sys.path.insert(0, os.path.join(ROOT, 're-tools'))
 
 RET, DOWN, RIGHT = (0x1C, 0x0D), (0x3D, 0x00), (0x3C, 0x00)
 RET_TO_CLICK = ('ret*',)          # Return at every key wait up to the next click-map wait
+RESET = ('reset',)                # the reset button (engine only): the original is started anew
+                                  # with the keys after it, the engine must end in the same state
 DUMP_SAVES = ['FLAG0', 'FLAG1', 'FLAG2', 'FLAG3', 'FLAG4', 'FLAG5', 'NAME.DEF']
 
 # name: (language, save files from the dump, keys)
@@ -79,6 +81,13 @@ SCENARIOS = {
     # Graphic mode: the 45 screens by key (verb 0), then automatically (verb 1, delay 100)
     'graphic_all': ('ja', DUMP_SAVES, [DOWN] * 5 + [RET] + [RET] + [RET] * 45 + [RIGHT, RET]),
     'continue_en': ('en', DUMP_SAVES, [DOWN] * 3 + [RET, RET] + [RET] * 40),
+    # the reset button while a song plays in Sound mode, in the game, and in name entry
+    'reset_sound': ('ja', DUMP_SAVES, [DOWN] * 4 + [RET, RET, RET, RESET]
+                    + [DOWN] * 3 + [RET, RET] + [RET] * 40),
+    'reset_game': ('ja', DUMP_SAVES, [DOWN] * 3 + [RET, RET, RET_TO_CLICK, RESET]
+                   + [DOWN] * 4 + [RET] + [DOWN, RET, DOWN, DOWN, RET]),
+    'reset_name': ('ja', [], [RET, (0x1D, 0x61), (0x24, 0xB6), RESET, RET, (0x29, 0x5A), RET]
+                   + [RET] * 30),
 }
 
 
@@ -188,6 +197,8 @@ def original_files(original, lang):
 
 def run_reference(original, fonts, lang, saves, keys, script=None, stop=None):
     import nvovl_emu
+    if RESET in keys:                           # the machine started again: what follows
+        keys = keys[len(keys) - keys[::-1].index(RESET):]
     storage = {s: open(os.path.join(original, 'pc98', 'A', s), 'rb').read() for s in saves}
     files = original_files(original, lang)
     if script:
@@ -246,7 +257,7 @@ def run_engine(exe, pak, original, lang, saves, keys, script=None, stop=None):
         open(os.path.join(d, s), 'wb').write(data)
         before[s] = data
     keystr = ','.join('C:%d:%d' % k[1:] if k[0] == 'click' else 'R*' if k[0] == 'ret*' else
-                      '%02X%02X' % k for k in keys) or '-'
+                      'RESET' if k[0] == 'reset' else '%02X%02X' % k for k in keys) or '-'
     env = dict(os.environ)
     if stop:
         env['TEST_VM_STOP_SAVE'] = stop

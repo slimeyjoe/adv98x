@@ -6,6 +6,8 @@
 #                                  into ../resources/original/ and derive ../resources/derived/
 #   make pack                      build the game pack ../build/nova.pak from the imported game
 #   make TARGET=host test          build and run the conformance tests
+#   make TARGET=sdl3 dist          the player's archive ../build/adv98x-<version>-<host>.tar.gz
+#   make dist-src                  the source archive ../build/adv98x-<version>-src.tar.gz
 #   make clean                     remove ../build/
 #   make data-clean                remove everything made from the game outside ../build/
 #   make distclean                 clean + data-clean: only the committed files are left
@@ -131,5 +133,39 @@ pack:
 	$(Q)python3 -I tools/xfont.py --no-bold -o $(BUILDROOT)/fonts/ank8.xfnt $(X11FONTS)/8x16rk.bdf >/dev/null
 	$(Q)python3 -I tools/xfont.py --no-bold -o $(BUILDROOT)/fonts/k16.xfnt $(X11FONTS)/jiskan16.bdf >/dev/null
 	$(Q)python3 -I tools/mkpack.py --original $(ORIGINAL) --fonts $(BUILDROOT)/fonts -o $(PAK)
+
+
+# ---------------------------------------------------------------------------------------------
+# Release archives. The version is engine/version.h's (the release is tagged v<version>).
+# `make TARGET=sdl3 dist`: $(BUILD)/adv98x-<version>-<DIST_NAME>.tar.gz, which unpacks to
+# Adv98X/{adv98x, ReadMe.txt, LICENSE, LICENSE.ymfm}: the stripped executable, the player's
+# ReadMe (backends/<backend>/ReadMe.txt, @VERSION@ replaced) and the licences of what is in the
+# executable. The pack is not in it: it is the game's data, which the player builds from their
+# own copy (the ReadMe says how). config/<TARGET>.mk sets DIST_NAME (and DIST_STRIP).
+# `make dist-src`: the committed tree at HEAD (git archive; the repository holds no game data).
+# ---------------------------------------------------------------------------------------------
+AX_VERSION := $(shell sed -n 's/^\#define AX_VERSION *"\(.*\)"/\1/p' engine/version.h)
+DIST_README ?= backends/$(BACKEND)/ReadMe.txt
+DIST_STRIP  ?= strip
+DIST        := $(BUILD)/adv98x-$(AX_VERSION)-$(DIST_NAME).tar.gz
+DISTDIR     := $(BUILD)/dist
+# no local user or group names in the archive (GNU tar / bsdtar spell it differently)
+TAR_ANON    := $(if $(shell tar --version 2>/dev/null | grep GNU),--owner=0 --group=0 --numeric-owner,--uid 0 --gid 0 --uname '' --gname '')
+.PHONY: dist dist-src
+dist: $(EXE)
+	$(Q)test -n "$(DIST_NAME)" || { echo "dist: no release archive for TARGET=$(TARGET)"; exit 1; }
+	$(Q)rm -rf $(DISTDIR) $(DIST)
+	$(Q)mkdir -p $(DISTDIR)/Adv98X
+	$(Q)cp $(EXE) $(DISTDIR)/Adv98X/
+	$(if $(DIST_STRIP),$(Q)$(DIST_STRIP) $(DISTDIR)/Adv98X/adv98x$(EXESUF))
+	$(Q)sed 's/@VERSION@/$(AX_VERSION)/g' $(DIST_README) >$(DISTDIR)/Adv98X/ReadMe.txt
+	$(Q)cp ../LICENSE $(DISTDIR)/Adv98X/LICENSE
+	$(Q)cp third_party/ymfm/LICENSE $(DISTDIR)/Adv98X/LICENSE.ymfm
+	@echo "  TAR   $(DIST)"
+	$(Q)cd $(DISTDIR) && tar $(TAR_ANON) -czf $(abspath $(DIST)) Adv98X
+	$(Q)tar -tzvf $(DIST)
+dist-src:
+	@echo "  TAR   $(BUILDROOT)/adv98x-$(AX_VERSION)-src.tar.gz"
+	$(Q)git -C .. archive --prefix=adv98x-$(AX_VERSION)/ -o $(abspath $(BUILDROOT))/adv98x-$(AX_VERSION)-src.tar.gz HEAD
 
 -include $(DEPS)

@@ -9,6 +9,8 @@ struct ax_config {
     struct ax_video_cfg video;
     int language;          /* XPAK_L_JA / _EN / _PL (xpak_lang_id); 0 = the profile's default */
     int audio_rate;        /* requested output rate, 0 = audio off */
+    int volume;            /* FM output (music and effects) in percent 1..100; 0 = 100,
+                            * negative = silent */
     /* picture viewer (a tool, not the game): 1 = browse the pack's pictures instead of
      * running the game; view_picture names the first one (NULL = the first in the pack) */
     int view;

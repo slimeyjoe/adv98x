@@ -7,6 +7,7 @@
 #define AX_GFX_CURSOR_H
 
 void cursor_init(void);
+void cursor_reset(void);            /* forget the save-under (the pages were cleared) */
 void cursor_shutdown(void);
 void cursor_apply(int page);        /* draw at the pointer if it is shown, saving what is under */
 void cursor_restore(int page);

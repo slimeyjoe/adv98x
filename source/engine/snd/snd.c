@@ -22,6 +22,7 @@ static uint64_t g_clock0;               /* sequencer clock of output sample 0 */
 static uint64_t g_samples;              /* output samples rendered */
 static uint64_t g_bus;                  /* 16.16 absolute sample: the bus is free from here */
 static uint32_t g_cost;                 /* 16.16 samples per register write (rate / 55 467) */
+static int32_t g_gain = 256;            /* cfg.volume as x/256 (music and effects: one chip) */
 static struct { uint64_t clock; uint8_t reg, val; } g_wq[WQ_SIZE];
 static unsigned g_head, g_tail;
 static int16_t g_buf[RENDER_MAX];
@@ -88,10 +89,16 @@ static void render(int16_t *pcm, int frames)
                 upto = k;
             }
         }
-        if (g_core)
+        if (g_core) {
             g_ops->render(g_core, pcm + pos, upto - pos);
-        else
+            if (g_gain != 256) {
+                int i;
+                for (i = pos; i < upto; i++)
+                    pcm[i] = (int16_t)(((int32_t)pcm[i] * g_gain) / 256);
+            }
+        } else {
             memset(pcm + pos, 0, sizeof(int16_t) * (size_t)(upto - pos));
+        }
         pos = upto;
     }
     g_samples = end;
@@ -105,6 +112,19 @@ void ax_audio_render(int16_t *pcm, int frames)
     else
         memset(pcm, 0, (size_t)frames * sizeof *pcm);
     UNLOCK();
+}
+
+/* what AdvBIOS's start-up wrote before the model takes over (usd-driver.md §3: SSG outputs
+ * off, FM keys off, timers A and B programmed and started) */
+static void boot_writes(void)
+{
+    static const uint8_t boot[][2] = {
+        { 0x07, 0xBF }, { 0x28, 0x00 }, { 0x28, 0x01 }, { 0x28, 0x02 },
+        { 0x24, 0x47 }, { 0x25, 0x03 }, { 0x26, 0xDF }, { 0x27, 0x0F }
+    };
+    unsigned i;
+    for (i = 0; i < sizeof boot / sizeof boot[0]; i++)
+        g_ops->write(g_core, boot[i][0], boot[i][1]);
 }
 
 void snd_init(void)
@@ -124,17 +144,9 @@ void snd_init(void)
     g_core = g_ops->create(USD_CLOCK, (uint32_t)ax.cfg.audio_rate, &rate);
     if (!g_core)
         return;
-    {
-        /* what AdvBIOS's start-up wrote before the model takes over (usd-driver.md §3: SSG
-         * outputs off, FM keys off, timers A and B programmed and started) */
-        static const uint8_t boot[][2] = {
-            { 0x07, 0xBF }, { 0x28, 0x00 }, { 0x28, 0x01 }, { 0x28, 0x02 },
-            { 0x24, 0x47 }, { 0x25, 0x03 }, { 0x26, 0xDF }, { 0x27, 0x0F }
-        };
-        unsigned i;
-        for (i = 0; i < sizeof boot / sizeof boot[0]; i++)
-            g_ops->write(g_core, boot[i][0], boot[i][1]);
-    }
+    boot_writes();
+    g_gain = ax.cfg.volume > 0 && ax.cfg.volume <= 100 ? ax.cfg.volume * 256 / 100 :
+             ax.cfg.volume < 0 ? 0 : 256;
     g_rate = (uint32_t)ax.hal->audio_open((int)rate);
     if (!g_rate) {
         g_ops->destroy(g_core);
@@ -146,6 +158,22 @@ void snd_init(void)
     g_samples = 0;
     g_bus = 0;
     g_audio = 1;
+}
+
+/* the machine's reset: the chip and the sequencer as at start-up, the output stays open */
+void snd_reset(void)
+{
+    LOCK();
+    g_head = g_tail = 0;
+    usd_init(&g_usd, on_write, 0);
+    if (g_core) {
+        g_ops->reset(g_core);
+        boot_writes();
+    }
+    g_clock0 = usd_clock(&g_usd);
+    g_samples = 0;
+    g_bus = 0;
+    UNLOCK();
 }
 
 void snd_shutdown(void)

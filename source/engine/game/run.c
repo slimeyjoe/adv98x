@@ -73,9 +73,17 @@ static int run_viewer(void)
     }
     viewer_show(k);
     sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_KEY, 0, 0, 0);
-    while (!sys_quitting()) {
+    for (;;) {
         int dir = 0;
         sys_frame_wait();
+        if (sys_resetting()) {          /* the reset button: back to the first picture */
+            sys_reset_input();
+            k = viewer_next(-1, 1);
+            viewer_show(k);
+            continue;
+        }
+        if (sys_quitting())
+            break;
         while (sys_key_sense()) {
             unsigned key = sys_key_read() >> 8;
             if (key == AX_K_RIGHT || key == AX_K_DOWN || key == AX_K_RETURN || key == AX_K_SPACE)
@@ -117,15 +125,37 @@ static void install_messages(void)
     xpak_free(&ax.pak, d, size);
 }
 
+/* The reset button (AX_EV_RESET; the original has none, the player would reboot the PC-98 and
+ * start the game again): the game unwinds as for a quit, then the machine is put back into its
+ * start-up state - screen, palette, text layer, sound, AdvBIOS, the interpreter's memory, the
+ * plug-ins - and the game starts again from its start script. The storage (saves, the player's
+ * name) is kept, as the floppy keeps it. This is how the player leaves an ending, which loops
+ * for ever in the original (END.MES). */
+static void reset_machine(void)
+{
+    snd_reset();
+    gfx_reset();
+    tl_init();
+    cursor_reset();
+    bios_init();
+    sys_reset_input();
+    sys_log(AX_LOG_INFO, "reset");
+    sys_trace(AX_TR_RESET, 0, 0, 0, 0, 0, 0);
+}
+
 static int run_game(void)
 {
     char start[40];
     snprintf(start, sizeof start, "\\MES\\%s.MES", ax.profile.start);
-    vm_init();
-    mod_init(ax.profile.modules);
-    install_messages();
-    vm_run_game(start);
-    return 0;
+    for (;;) {
+        vm_init();
+        mod_init(ax.profile.modules);
+        install_messages();
+        vm_run_game(start);
+        if (!sys_resetting())
+            return 0;
+        reset_machine();
+    }
 }
 
 /* ---- the engine --------------------------------------------------------------------------- */

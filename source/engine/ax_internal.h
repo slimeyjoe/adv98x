@@ -70,6 +70,7 @@ struct ax_state {
     unsigned mouse_edges;               /* AX_EV_MOUSE_* not yet consumed */
     int mouse_x, mouse_y;               /* the pointer position the engine works with */
     int quit_requested, emergency_quit;
+    int reset_requested;                /* AX_EV_RESET: unwinds like a quit, then starts again */
 
     /* time */
     uint32_t frame;                     /* frames since start */
@@ -89,7 +90,10 @@ extern struct ax_state ax;
 /* sys.c: the single blocking point, presentation, input and diagnostics */
 void sys_init(void);
 void sys_frame_wait(void);                       /* one frame: hooks, present, wait, input */
-int  sys_quitting(void);                         /* the player asked to quit (window close) */
+int  sys_quitting(void);                         /* the player asked to quit (window close) or
+                                                  * to reset: the game unwinds to the top */
+int  sys_resetting(void);                        /* ... and it is a reset, not a quit */
+void sys_reset_input(void);                      /* reset done: clear it and the type-ahead */
 void sys_present_now(void);
 void sys_add_frame_hook(void (*fn)(void));       /* run once per frame, before presenting */
 void sys_add_tick_hook(void (*fn)(void));        /* run once per 20 ms tick */

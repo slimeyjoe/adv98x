@@ -33,6 +33,11 @@ void cursor_init(void)
     saved_page = -1;
 }
 
+void cursor_reset(void)
+{
+    saved_page = -1;
+}
+
 void cursor_shutdown(void)
 {
     if (shape)

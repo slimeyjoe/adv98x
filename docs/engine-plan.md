@@ -4,7 +4,9 @@ The implementation plan, approved 2026-11-14. Status: research (phase 1) complet
 before M0 done, **M0–M4 done** (2026-11-14); M5 mostly done (left: animation cells, beeper
 sound, STOP-key prompt — none used by NOVA); **M6 done** (2026-11-14): every story and ending,
 both languages, played through the engine and the original interpreter with identical results
-(`make TARGET=host e2e`). Next: M7. Update the status line and tick milestones here as
+(`make TARGET=host e2e`). **M7 done** (2026-11-14): reset key, volume, `--help`/`--version`,
+release archives, README; what remains is the user's play-testing (feel, music balance) and
+the later efforts listed under M7. Update the status line and tick milestones here as
 they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
@@ -219,7 +221,7 @@ unlock chain (a fresh storage shows only "start"; after `END` writes `FLAG3`/`FL
 menu entries appear), Sound and Graphic modes; golden screen hashes at fixed points; an SDL3
 offscreen presentation run. Routes come from `docs/re/script-catalog.md`.
 
-**M7 — Polish for a first release.** (Starting point: the SDL3 build already has `--lang`,
+**M7 — Polish for a first release.** ✔ (Starting point: the SDL3 build already has `--lang`,
 `--scale`, `--fullscreen`, `--window`, `--storage`, `--view`, F11/F12 and Shift+Esc; no volume
 options, no `make dist`; END's endless loop lets a frame pass every 1000 rounds, M6 notes.) Options (`--lang`, `--scale`, `--fullscreen`, volumes), the
 engine's own end-of-game behaviour where the original loops forever (kept as original; a system-level
@@ -434,3 +436,38 @@ Decisions taken while implementing, where the work refined or departed from the 
   offscreen SDL3 backend in control mode, five window size / scale mode runs, four frames each;
   the renderer's readback against the engine's frame (destination rectangle per scale mode,
   black border, exact palette colours ×17 with nearest filtering, flat areas with linear).
+
+**M7 (2026-11-14)**
+
+- *The end of the game stays as the original*: END.MES loops for ever after writing the unlock
+  file. The way out is a **reset button** (`AX_EV_RESET`; SDL3: Ctrl+Shift+R, the control
+  protocol and autoplay: `reset`), the engine's stand-in for switching the PC-98 off and
+  starting the game again. The game unwinds as for a quit (every wait already polls for it),
+  then `run.c` puts the machine back into its start-up state — sound (`snd_reset`: the chip
+  reset with AdvBIOS's start-up writes, a fresh sequencer, the output kept open), both pages
+  and the palette (`gfx_reset`), the text layer, the pointer's save-under, AdvBIOS's DGROUP
+  (`bios_init`), the interpreter's memory, the plug-ins (`mod_init` now resets every module) —
+  and runs the start script again; the storage is kept. A reset is available everywhere, not
+  only at the end; in the viewer it goes back to the first picture. Trace event `reset`.
+- *Checked against the original:* `check_vm.py` `reset_sound` (a song playing in Sound mode),
+  `reset_game` (at a map's click wait), `reset_name` (in name entry, before NAME.DEF is
+  written): the engine runs the keys before RESET, is reset, runs the keys after it; the
+  original runs only the keys after it from a fresh start; memory, screen, DAC, text VRAM,
+  saves, sound and palette calls (logged from the reset on) are identical. Mutations show
+  `bios_init` is needed; dropping `gfx_reset` or `tl_init` is invisible for NOVA (RUN.MES
+  redraws everything, the start uncovers the whole text layer) — they stay, so that a reset is
+  the start-up state for any game.
+- `stories.sh` now plays the three stories **in one run** (`explore.py --chain
+  FLAG3:0,FLAG4:1,FLAG5:2`): after each ending's unlock file it presses reset, and the next
+  story must be on the title menu.
+- *Volume:* `--volume 0..100` (SDL3 and null backends) scales the FM output (music and effects
+  are one chip) by v·256/100 / 256 in `snd.c`; the render check in `run.sh` verifies every
+  sample of a 4 s render at 30 against the full-volume one.
+- *Options:* `--help` (all options and keys), `--version` (`engine/version.h`, 0.1.0).
+- *Release archives:* `make TARGET=sdl3 dist` → `adv98x-<version>-sdl3-<os>-<arch>.tar.gz`
+  with the stripped executable, the player's ReadMe (`backends/sdl3/ReadMe.txt`), `LICENSE`
+  and ymfm's licence; no pack (Xenon's model: the player builds it from their copy); no user
+  names in the tar headers. `make dist-src` is `git archive` of HEAD. The executable links SDL3
+  dynamically (the player installs it); bundling SDL3 for macOS is left for the public
+  release.
+
