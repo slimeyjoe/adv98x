@@ -24,7 +24,7 @@ static int option(void *ctx, const char *name, const char *arg)
 }
 
 /* enum ax_trace_kind, from LRV_TR_ENGINE */
-static const char *const trace_names[AX_TR_KIND_END - LRV_TR_ENGINE] = {
+static const char *const trace_names[(int)AX_TR_KIND_END - (int)LRV_TR_ENGINE] = {
     "script", "op", "text", "menu", "menu_sel", "picture", "palette", "sound", "save", "load",
     "module", "flag"
 };
