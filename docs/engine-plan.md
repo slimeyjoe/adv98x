@@ -576,10 +576,12 @@ the result. What was decided on the way:
   pack (the window title is the game's): it moved from the data-free tests to the ones that
   need the pack.
 - *Tools.* `gamedata.py` is lrvne's inventory framework with hooks; it now reads 7z/rar/lzh
-  archives and nested containers, and takes the Windows release's `EVE.PCK` out of the rar.
-  lrvne's sources have no hook for an archive format of a game's own, so the PCK is unpacked
-  in `on_entry` and imported from a temporary directory in `post_import`. The blank
+  archives and nested containers, and takes the Windows release's `EVE.PCK` out of the rar:
+  the PCK reader is registered as a container format of the game's own
+  (`Hooks(containers={'.pck': read_pck})`, a hook added to lrvne for this). The blank
   end-of-directory entry of the PCK is no longer an inventory row.
+- *Added to lrvne on the way:* readers for archive formats of a game's own in its `source`
+  and `inventory` tools (above).
 - *Fixed in lrvne on the way:* the SDL3 backend drew the fit-mode picture into a rectangle
   with fractional edges, which lit a border column under the software renderer
   (`tests/e2e/present.py` failed at 1000x700 before the migration too); the rectangle is now

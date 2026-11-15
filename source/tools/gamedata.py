@@ -6,8 +6,8 @@ The repository carries none of the game (Cat's Pro, 1993), only an inventory of 
 resources/inventory.tsv (release, path, size, mtime, md5, kind). This is lrvne's import
 framework (source/lrvne/tools: lrvne.inventory, which finds the files in whatever you have:
 directories, zip/7z/rar archives, floppy and hard-disk images, nested in any order) with what
-only this game's tools know: where a release goes, the Windows release's archive, and the
-derived data.
+only this game's tools know: where a release goes, how to read the Windows release's archive
+(EVE.PCK), and the derived data.
 
 usage (python3 -I tools/gamedata.py ...):
   import [SRC...] [--out DIR]    copy the files of the inventory from your media into
@@ -15,10 +15,10 @@ usage (python3 -I tools/gamedata.py ...):
   check [-q] [--out DIR]         verify that tree; exit status 1 while the PC-98 release is
                                  incomplete
   scan [SRC...]                  print inventory rows for what SRC holds (maintenance): the
-                                 PC-98 floppies are recognised by their volume label, other
-                                 files are rows of the release named in the environment
-                                 variable SCAN_RELEASE (default: en)
-  pck EVE.PCK DIR                unpack the Windows release's archive (maintenance)
+                                 PC-98 floppies are recognised by their volume label, the
+                                 members of EVE.PCK are the Windows release's, other files
+                                 are rows of the release named in the environment variable
+                                 SCAN_RELEASE (default: en)
   derive [PART...] [--python PY] everything the documents and tests refer to, see below
 SRC defaults to the directories named in the LRVNE_MEDIA environment variable.
 
@@ -47,11 +47,9 @@ re-tools/ and source/tools/:
 """
 import glob
 import os
-import shutil
 import struct
 import subprocess
 import sys
-import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
@@ -96,49 +94,10 @@ def pck_members(d):
         yield name.decode('ascii'), d[off:off + size]
 
 
-def unpack_pck(data, dest):
-    os.makedirs(dest, exist_ok=True)
-    n = 0
-    for name, member in pck_members(data):
-        if os.path.basename(name) == name and name not in ('.', '..'):
-            with open(os.path.join(dest, name), 'wb') as f:
-                f.write(member)
-            n += 1
-    return n
-
-
-class PckImport:
-    """lrvne's sources do not look into an archive of a game's own format. The import hands
-    every file it sees to `on_entry`, which unpacks a PCK archive into a temporary directory;
-    `post_import` then imports from there and adds the outcome to the report."""
-
-    def __init__(self, hooks_for):
-        self.hooks_for = hooks_for
-        self.dirs = []
-
-    def on_entry(self, entry):
-        if entry.name.upper().endswith('.PCK') and entry.reader is not None:
-            data = entry.read()
-            if is_pck(data):
-                self.dirs.append(tempfile.mkdtemp(prefix='gamedata-pck-'))
-                unpack_pck(data, self.dirs[-1])
-
-    def post_import(self, report, dest):
-        try:
-            if self.dirs:
-                inv = inventory.Inventory([], report.rows)
-                more = inventory.import_files(inv, self.dirs, dest, self.hooks_for(None))
-                print('gamedata: %d files of the inventory in the PCK archive' % len(more.found))
-                report.found.update(more.found)
-                report.written += more.written
-                report.have |= more.have
-                report.missing = [r for r in report.missing if r not in more.have]
-                still = {r.basename.upper() for r in report.missing}
-                report.mismatched = [m for m in report.mismatched if m[0].upper() in still]
-        finally:
-            for d in self.dirs:
-                shutil.rmtree(d, ignore_errors=True)
-            self.dirs = []
+def read_pck(data):
+    """The archive as lrvne's sources read one of a game's own format: its members, or None
+    when the file is not a PCK archive."""
+    return list(pck_members(data)) if is_pck(data) else None
 
 
 # ---- scan (maintenance) --------------------------------------------------------------------
@@ -156,19 +115,19 @@ def scan_row(entry, _data):
     label = entry.volume_label
     if label.startswith(FLOPPY_LABEL):
         release, path = 'pc98', label[-1] + '/' + entry.inner_path
+    elif entry.kind == 'container':
+        release, path = 'win', entry.inner_path
     else:
         release, path = os.environ.get('SCAN_RELEASE', 'en'), entry.inner_path
     return {'path': path, 'release': release, 'mtime': entry.mtime, 'kind': kind_of(path)}
 
 
-def hooks(pck):
-    return inventory.Hooks(
-        dest_path=lambda row: row.get('release') + '/' + row.name,
-        required=lambda row: row.get('release') == 'pc98',
-        group=lambda row: row.get('release'),
-        scan_row=scan_row,
-        on_entry=pck.on_entry if pck else None,
-        post_import=pck.post_import if pck else None)
+HOOKS = inventory.Hooks(
+    dest_path=lambda row: row.get('release') + '/' + row.name,
+    required=lambda row: row.get('release') == 'pc98',
+    group=lambda row: row.get('release'),
+    scan_row=scan_row,
+    containers={'.pck': read_pck})
 
 
 # ---- derive --------------------------------------------------------------------------------
@@ -254,25 +213,10 @@ def add_derive_arguments(p):
     p.add_argument('--out', default=ORIG)
 
 
-def add_pck_arguments(p):
-    p.add_argument('pck')
-    p.add_argument('dir')
-
-
-def cmd_pck(a):
-    with open(a.pck, 'rb') as f:
-        data = f.read()
-    if not is_pck(data):
-        sys.exit('gamedata: %s is not a PCK archive' % a.pck)
-    print('gamedata: %d files written to %s' % (unpack_pck(data, a.dir), a.dir))
-    return 0
-
-
 def main():
-    return inventory.run_cli(None, INVENTORY, ORIG, hooks=hooks(PckImport(hooks)),
-                             prog='gamedata', description=__doc__.split('\n')[0],
-                             commands={'derive': (add_derive_arguments, cmd_derive),
-                                       'pck': (add_pck_arguments, cmd_pck)})
+    return inventory.run_cli(None, INVENTORY, ORIG, hooks=HOOKS, prog='gamedata',
+                             description=__doc__.split('\n')[0],
+                             commands={'derive': (add_derive_arguments, cmd_derive)})
 
 
 if __name__ == '__main__':
