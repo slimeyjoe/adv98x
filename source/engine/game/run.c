@@ -98,12 +98,12 @@ static int run_viewer(const char *first)
             else if (key.key == LRV_K_LEFT || key.key == LRV_K_UP)
                 dir = -1;
             else if (key.key == LRV_K_ESC)
-                ax.sys.quit_requested = 1;
+                lrv_sys_request_quit(&ax.sys);
         }
         if (lrv_sys_mouse_pressed(&ax.sys, LRV_EV_MOUSE_L))
             dir = 1;
         if (lrv_sys_mouse_pressed(&ax.sys, LRV_EV_MOUSE_R))
-            ax.sys.quit_requested = 1;
+            lrv_sys_request_quit(&ax.sys);
         if (dir && !lrv_sys_quitting(&ax.sys)) {
             lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_KEY, 1, AX_LEAVE_KEY, 0);
             k = viewer_next(k, dir);
