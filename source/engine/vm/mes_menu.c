@@ -3,7 +3,7 @@
  * The item table at 0xD026 holds 16 entries of {index, x1, y1, x2, y2}; x in byte columns, y
  * in lines. Items whose conditions fail are not laid out but keep their index. */
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "bios/bios.h"
 #include "vm/mes.h"
 
@@ -143,21 +143,21 @@ static unsigned menu_select(int kind)
         goto choose;                    /* an empty list selects at once */
     highlight(0);
     mouse_to_item();
-    if (AX_TRACING()) {
+    if (LRV_TRACING(&ax.sys)) {
         static const uint8_t none[1] = { 0 };
         const uint8_t *items[1] = { none };
-        sys_trace_items(AX_TR_MENU, items, 0, kind);
+        lrv_sys_trace_items(&ax.sys, AX_TR_MENU, items, 0, kind);
     }
-    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_MENU, 0, (int)vm_rd16(MES_MENU_COUNT), 0);
+    lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_MENU, 0, (int)vm_rd16(MES_MENU_COUNT), 0);
     for (;;) {
         /* wait until no button is down, flush the keys */
         while (mouse_buttons()) {
             if (bios_quit_poll())
                 vm_quit();
-            sys_frame_wait();
+            lrv_sys_frame_wait(&ax.sys);
         }
-        while (sys_key_sense())
-            sys_key_read();
+        while (bios_key_sense())
+            bios_key_read();
         for (;;) {
             unsigned n, slot = 0, key;
             if (bios_quit_poll())
@@ -172,11 +172,11 @@ static unsigned menu_select(int kind)
                     goto choose;
                 }
             }
-            if (!sys_key_sense()) {
-                sys_frame_wait();
+            if (!bios_key_sense()) {
+                lrv_sys_frame_wait(&ax.sys);
                 continue;
             }
-            key = sys_key_read() >> 8;
+            key = bios_key_read() >> 8;
             if (bios_quit_poll())
                 vm_quit();
             if (key == 0x3C || key == 0x48) {           /* → */
@@ -224,8 +224,9 @@ choose:
         result = 0;
     }
 leave:
-    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_MENU, 1, result ? AX_LEAVE_SKIP : AX_LEAVE_KEY, 0);
-    sys_trace(AX_TR_MENU_SEL, 0, 0, result ? -1 : M[MES_VAR_S], kind, 0, 0);
+    lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_MENU, 1,
+                  result ? AX_LEAVE_SKIP : AX_LEAVE_KEY, 0);
+    lrv_sys_trace(&ax.sys, AX_TR_MENU_SEL, 0, 0, result ? -1 : M[MES_VAR_S], kind, 0, 0);
     mouse_show(0);
     mouse_set_emulation(emu);
     for (i = 11; i-- > 0;)

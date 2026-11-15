@@ -1,7 +1,7 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* The module registry (mod.h). */
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "mod/mod.h"
 #include "vm/mes.h"
 
@@ -73,7 +73,7 @@ int mod_load(const char *file, unsigned addr)
         bound[k].m = all[i];
         if (all[i]->load)
             all[i]->load();
-        sys_trace(AX_TR_MODULE, all[i]->name, 0, -1, (int)addr, 0, 0);
+        lrv_sys_trace(&ax.sys, AX_TR_MODULE, all[i]->name, 0, -1, (int)addr, 0, 0);
         return 1;
     }
     return 0;
@@ -96,7 +96,7 @@ long mod_exec(unsigned addr)
         int ints[64];
         for (i = 0; i < n; i++)
             ints[i] = args[i];
-        sys_trace_ints(AX_TR_MODULE, bound[k].m->name, ints, n, (int)addr);
+        lrv_sys_trace_ints(&ax.sys, AX_TR_MODULE, bound[k].m->name, ints, n, (int)addr);
     }
     return (long)bound[k].m->exec(args, n);
 }

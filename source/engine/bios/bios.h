@@ -6,6 +6,9 @@
 #define AX_BIOS_H
 
 #include <stdint.h>
+#include "lrvne/pc98.h"
+
+#define BIOS_KEYQ 16                    /* the BIOS key buffer holds 16 presses */
 
 /* the state AdvBIOS keeps in its DGROUP and in 04E9 (advbios.md §5) */
 struct ax_bios {
@@ -21,6 +24,9 @@ struct ax_bios {
     /* animation lip-sync hooks (§5.4): trigger colours (0182/0183) and counters (0184/0186) */
     uint8_t lip_colour[2];
     uint16_t lip_count[2];
+    /* INT 18h: the BIOS key buffer (0000:0502), filled from the presses the frames deliver */
+    struct lrv_pc98_key kbuf[BIOS_KEYQ];
+    int khead, kcount;
     /* INT F1h */
     uint32_t rng;                       /* DS:00FE */
     int quit_flag;                      /* DS:06BE: the player confirmed quitting */
@@ -39,6 +45,15 @@ struct ax_bios {
 };
 
 void bios_init(void);
+/* an lrv_hook_fn of LRV_HOOK_TICK: a frame passed, which is 50 / 56.42 of AdvBIOS's 20 ms
+ * ticks (ax.tick) */
+void bios_frame_tick(void *unused);
+
+/* ---- INT 18h: the keyboard as the PC-98's BIOS presents it (bios_sys.c, advbios.md §6.1) ---- */
+int  bios_key_sense(void);                          /* AH=01h: non-zero when a key waits */
+unsigned bios_key_read(void);                       /* AH=00h: (scan << 8) | character; removes
+                                                     * it; FFFFh when there is none */
+int  bios_key_down(int scan);                       /* the key-down bitmap 0000:052A */
 
 /* ---- INT F1h: system and waits (bios_sys.c) ---- */
 unsigned bios_random(void);                         /* AH=01h: 0..7FFFh */
@@ -56,6 +71,8 @@ int  bios_quit_flag(void);                          /* AH=0Fh AL=1 */
 
 /* ---- INT 33h: the mouse (bios_mouse.c) ---- */
 void mouse_init(void);
+void mouse_frame(void *unused);                     /* an lrv_hook_fn of LRV_HOOK_PUMP: the
+                                                     * driver's 120 Hz interrupts of one frame */
 void mouse_reset(void);                             /* AX=0 */
 void mouse_show(int on);                            /* AX=1 / 2 */
 void mouse_state(unsigned *x, unsigned *y);         /* AX=3: position */
@@ -114,6 +131,11 @@ int  bg_draw_gpc(const uint8_t *data, uint32_t size, unsigned xb, unsigned y, in
 uint8_t *bg_picture_buffer(uint32_t *cap);          /* AH=00h: the GPC load buffer */
 void bg_anim_mode(int on);                          /* AX=0AFFh / 0A00h around the waits */
 void bg_anim_poll(void);                            /* the 2-tick animation step (§5.4) */
+void bg_init(void);                                 /* the default palette at full brightness */
+void bg_load_palette(const uint16_t pal[16]);       /* into the palette buffer only */
+void bg_program_colour(int i, int level);           /* one colour from the buffer at `level` */
+void bg_program(int level);                         /* AH=11h without its VSYNC wait: store the
+                                                     * brightness, program all 16 colours */
 void bg_default_palette(void);                      /* AH=10h */
 void bg_set_brightness(int level);                  /* AH=11h (waits one frame) */
 int  bg_brightness(void);                           /* AH=12h */

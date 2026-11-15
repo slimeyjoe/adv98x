@@ -5,42 +5,39 @@
  * colour). VRAM offsets are 16-bit y * 80 + x as in the original; nothing is written outside
  * the 32000 visible bytes of a plane. */
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "bios/bios.h"
-#include "gfx/gfx.h"
 #include "text/font.h"
 
 #define B (ax.bios)
 
 /* ---- VRAM access through the GRCG ---------------------------------------------------------- */
 
+/* a run of n bytes at VRAM offset off was written (a run over the right edge goes on in the
+ * next line) */
 static void mark(unsigned off, unsigned n)
 {
-    unsigned y = off / AX_PLANE_STRIDE, x = off % AX_PLANE_STRIDE;
-    if (x + n > AX_PLANE_STRIDE)
-        gfx_mark_dirty(ax.access_page, 0, (int)y, AX_PLANE_STRIDE, (int)y + 2);
-    else
-        gfx_mark_dirty(ax.access_page, (int)x, (int)y, (int)(x + n), (int)y + 1);
+    lrv_screen_mark_off(&ax.screen, ax.screen.access_page, (int)off, (int)n, 1);
 }
 
 /* RMW: plane = (plane & ~mask) | (tile & mask), tile = all ones where the colour has the bit */
 static void rmw_byte(unsigned off, uint8_t mask, int colour)
 {
-    struct ax_planes *pg = gfx_access();
+    struct lrv_surface *pg = lrv_screen_access(&ax.screen);
     int p;
     off &= 0xFFFF;
     if (off >= AX_PLANE_BYTES)
         return;
     for (p = 0; p < 4; p++) {
         uint8_t tile = (colour >> p) & 1 ? 0xFF : 0x00;
-        pg->p[p][off] = (uint8_t)((pg->p[p][off] & ~mask) | (tile & mask));
+        pg->plane[p][off] = (uint8_t)((pg->plane[p][off] & ~mask) | (tile & mask));
     }
 }
 
 /* TDW: plane = tile */
 static void tdw_run(unsigned off, unsigned n, int colour)
 {
-    struct ax_planes *pg = gfx_access();
+    struct lrv_surface *pg = lrv_screen_access(&ax.screen);
     unsigned i;
     int p;
     for (i = 0; i < n; i++) {
@@ -48,7 +45,7 @@ static void tdw_run(unsigned off, unsigned n, int colour)
         if (o >= AX_PLANE_BYTES)
             continue;
         for (p = 0; p < 4; p++)
-            pg->p[p][o] = (colour >> p) & 1 ? 0xFF : 0x00;
+            pg->plane[p][o] = (colour >> p) & 1 ? 0xFF : 0x00;
     }
     mark(off & 0xFFFF, n);
 }
@@ -304,7 +301,7 @@ void bt_fill_rect(const uint16_t rect[4], int c)
 /* apiF6_0E_InvertRect 0000:0D64: XOR FFh, plane by plane */
 void bt_invert_rect(const uint16_t rect[4])
 {
-    struct ax_planes *pg = gfx_access();
+    struct lrv_surface *pg = lrv_screen_access(&ax.screen);
     unsigned off0 = (uint16_t)(80u * rect[1] + rect[0]);
     unsigned n = (uint16_t)(rect[2] - rect[0] + 1);
     unsigned lines = (uint16_t)(rect[3] - rect[1] + 1), l, i;
@@ -317,7 +314,7 @@ void bt_invert_rect(const uint16_t rect[4])
             for (i = 0; i < (n ? n : 0x10000u); i++) {
                 unsigned o = (off + i) & 0xFFFF;
                 if (o < AX_PLANE_BYTES)
-                    pg->p[p][o] ^= 0xFF;
+                    pg->plane[p][o] ^= 0xFF;
             }
             if (p == 0)
                 mark(off, n);
@@ -331,14 +328,14 @@ void bt_invert_rect(const uint16_t rect[4])
 static uint8_t vb(int p, unsigned off)
 {
     off &= 0xFFFF;
-    return off < AX_PLANE_BYTES ? gfx_access()->p[p][off] : 0;
+    return off < AX_PLANE_BYTES ? lrv_screen_access(&ax.screen)->plane[p][off] : 0;
 }
 
 static void vset(int p, unsigned off, uint8_t v)
 {
     off &= 0xFFFF;
     if (off < AX_PLANE_BYTES)
-        gfx_access()->p[p][off] = v;
+        lrv_screen_access(&ax.screen)->plane[p][off] = v;
 }
 
 /* one step: AL = 0 up, 1 down (by a line), 2 left, 3 right (by a byte column) */
@@ -347,7 +344,7 @@ static void scroll_step(int dir)
     unsigned x0 = B.win[0], y0 = B.win[1], x1 = B.win[2], y1 = B.win[3];
     unsigned rows, w, r, i, si, di;
     int p, bx;
-    sys_frame_wait();                           /* one VSYNC per step */
+    lrv_sys_frame_wait(&ax.sys);   /* one VSYNC per step */
     if (dir == 0 || dir == 1) {
         rows = (uint16_t)(y1 - y0);
         w = (uint16_t)(x1 - x0 + 1);
@@ -389,7 +386,7 @@ static void scroll_step(int dir)
             }
         }
     }
-    gfx_mark_dirty(ax.access_page, (int)x0, (int)y0, (int)x1 + 1, (int)y1 + 1);
+    lrv_screen_mark(&ax.screen, ax.screen.access_page, (int)x0, (int)y0, (int)x1 + 1, (int)y1 + 1);
 }
 
 /* AH=10h: the text window, CX steps */

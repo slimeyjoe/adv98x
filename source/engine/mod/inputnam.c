@@ -4,7 +4,7 @@
  * cells drawn with the AdvBIOS text services; keys are read from the BIOS buffer, type-ahead
  * dropped; the result is written to NAME.DEF as 256 bytes: the name (Shift-JIS) then FFh. */
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "bios/bios.h"
 #include "mod/mod.h"
 
@@ -64,20 +64,20 @@ static long get_key(void)
 {
     unsigned k, scan, chr;
     for (;;) {
-        if (sys_key_sense()) {
-            sys_key_read();
+        if (bios_key_sense()) {
+            bios_key_read();
             continue;
         }
-        sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_NAME, 0, 0, 0);
-        while (!sys_key_sense()) {
-            if (sys_quitting()) {
-                sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_NAME, 1, AX_LEAVE_QUIT, 0);
+        lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_NAME, 0, 0, 0);
+        while (!bios_key_sense()) {
+            if (lrv_sys_quitting(&ax.sys)) {
+                lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_NAME, 1, AX_LEAVE_QUIT, 0);
                 return -1;
             }
-            sys_frame_wait();
+            lrv_sys_frame_wait(&ax.sys);
         }
-        k = sys_key_read();
-        sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_NAME, 1, AX_LEAVE_KEY, 0);
+        k = bios_key_read();
+        lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_NAME, 1, AX_LEAVE_KEY, 0);
         break;
     }
     scan = k >> 8;
@@ -158,7 +158,7 @@ static void write_name(void)
     memset(out + n, 0xFF, 256);
     bios_select_drive(0, 0);
     if (bios_file_write("A:\\NAME.DEF", out, 256) != 256)
-        sys_log(AX_LOG_ERROR, "INPUTNAM: cannot write NAME.DEF");
+        lrv_log(ax.hal, LRV_LOG_ERROR, "INPUTNAM: cannot write NAME.DEF");
 }
 
 /* parse_args 002C: needs 5 arguments; maxlen 0 or > 6 -> 6; x clamped so the field fits; y <= 383 */

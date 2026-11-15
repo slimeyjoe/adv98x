@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Glyph tables (XFNT, tools/xfont.py) and the kanji ROM read (font.h). From Xenon's font.c. */
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "text/font.h"
-#include "util/endian.h"
+#include "lrvne/endian.h"
 
 struct xfnt {
     uint8_t *data;
@@ -25,7 +25,7 @@ static int font_load(struct xfnt *f, const char *name, int cell_w)
         return 0;
     f->cell_w = f->data[5];
     f->cell_h = f->data[6];
-    f->count = rd16le(f->data + 8);
+    f->count = lrv_rd16le(f->data + 8);
     f->codes = f->data + 12;
     f->glyph_bytes = f->cell_h * f->cell_w / 8;
     f->glyphs = f->codes + 2 * f->count;
@@ -40,7 +40,7 @@ static const uint8_t *font_glyph(const struct xfnt *f, unsigned code)
     int lo = 0, hi = f->count - 1;
     while (lo <= hi) {
         int mid = (lo + hi) / 2;
-        unsigned c = rd16le(f->codes + 2 * mid);
+        unsigned c = lrv_rd16le(f->codes + 2 * mid);
         if (c == code)
             return f->glyphs + mid * f->glyph_bytes;
         if (c < code)
@@ -54,9 +54,9 @@ static const uint8_t *font_glyph(const struct xfnt *f, unsigned code)
 void font_init(void)
 {
     if (!font_load(&font16, "font16", 16))
-        sys_fatal("font16 missing from the pack");
+        lrv_fatal(ax.hal, "font16 missing from the pack");
     if (!font_load(&font8, "font8", 8))
-        sys_fatal("font8 missing from the pack");
+        lrv_fatal(ax.hal, "font8 missing from the pack");
 }
 
 void font_shutdown(void)

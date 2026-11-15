@@ -3,9 +3,8 @@
  * then the AND mask and the image, row by row; pixels whose mask bit is 0 are drawn, white (15)
  * where the image bit is 1, black (0) where it is 0; hot spot (0, 0) after a reset. */
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "gfx/cursor.h"
-#include "gfx/gfx.h"
 
 #define MAXW 6                              /* bytes touched per row: shape + 1 for the shift */
 #define MAXH 40
@@ -14,7 +13,7 @@ static uint8_t *shape;
 static uint32_t shape_size;
 static int sw, sh;
 static uint8_t saved[4][MAXH][MAXW];
-static int saved_x, saved_y, saved_w, saved_h, saved_page = -1;
+static int saved_x, saved_y, saved_w, saved_h, saved_valid;
 
 void cursor_init(void)
 {
@@ -29,13 +28,13 @@ void cursor_init(void)
         }
     }
     if (!shape)
-        sys_log(AX_LOG_WARN, "pack: no mouse pointer shape");
-    saved_page = -1;
+        lrv_log(ax.hal, LRV_LOG_WARN, "pack: no mouse pointer shape");
+    saved_valid = 0;
 }
 
 void cursor_reset(void)
 {
-    saved_page = -1;
+    saved_valid = 0;
 }
 
 void cursor_shutdown(void)
@@ -45,11 +44,19 @@ void cursor_shutdown(void)
     shape = 0;
 }
 
-void cursor_apply(int page)
+static void mark(const struct lrv_surface *pg, struct lrv_rect *dirty)
 {
-    struct ax_planes *pg = &ax.page[page];
-    int x = ax.mouse_x, y = ax.mouse_y, xb = x >> 3, shift = x & 7, r, b, p;
-    saved_page = -1;
+    struct lrv_rect r;
+    r.x0 = saved_x; r.y0 = saved_y; r.x1 = saved_x + saved_w; r.y1 = saved_y + saved_h;
+    lrv_rect_clip(&r, pg);
+    lrv_rect_union(dirty, &r);
+}
+
+void cursor_apply(void *unused, struct lrv_surface *pg, struct lrv_rect *dirty)
+{
+    int x = ax.sys.mouse_x, y = ax.sys.mouse_y, xb = x >> 3, shift = x & 7, r, b, p;
+    (void)unused;
+    saved_valid = 0;
     if (!shape || !ax.bios.mouse_shown)
         return;
     saved_x = xb;
@@ -63,39 +70,39 @@ void cursor_apply(int page)
             int col = xb + b;
             unsigned m16, i16;
             uint8_t draw, ink;
-            if (yy >= AX_SCREEN_H || col >= AX_PLANE_STRIDE)
+            if (yy >= LRV_PC98_H || col >= LRV_PC98_STRIDE)
                 continue;
             for (p = 0; p < 4; p++)
-                saved[p][r][b] = pg->p[p][yy * AX_PLANE_STRIDE + col];
+                saved[p][r][b] = pg->plane[p][yy * LRV_PC98_STRIDE + col];
             /* the shape's bits shifted right by the pixel offset (mask padded with 1s) */
             m16 = ((b > 0 ? (unsigned)mrow[b - 1] : 0xFFu) << 8 | (b < sw ? mrow[b] : 0xFFu)) >> shift;
             i16 = ((b > 0 ? (unsigned)irow[b - 1] : 0u) << 8 | (b < sw ? irow[b] : 0u)) >> shift;
             draw = (uint8_t)~m16;
             ink = (uint8_t)i16;
             for (p = 0; p < 4; p++) {
-                uint8_t *d = &pg->p[p][yy * AX_PLANE_STRIDE + col];
+                uint8_t *d = &pg->plane[p][yy * LRV_PC98_STRIDE + col];
                 *d = (uint8_t)((*d & ~draw) | (ink & draw));
             }
         }
     }
-    gfx_mark_dirty(page, xb, y, xb + saved_w, y + sh);
-    saved_page = page;
+    mark(pg, dirty);
+    saved_valid = 1;
 }
 
-void cursor_restore(int page)
+void cursor_restore(void *unused, struct lrv_surface *pg, struct lrv_rect *dirty)
 {
-    struct ax_planes *pg = &ax.page[page];
     int r, b, p;
-    if (saved_page != page)
+    (void)unused;
+    if (!saved_valid)
         return;
     for (r = 0; r < saved_h; r++)
         for (b = 0; b < saved_w; b++) {
             int yy = saved_y + r, col = saved_x + b;
-            if (yy >= AX_SCREEN_H || col >= AX_PLANE_STRIDE)
+            if (yy >= LRV_PC98_H || col >= LRV_PC98_STRIDE)
                 continue;
             for (p = 0; p < 4; p++)
-                pg->p[p][yy * AX_PLANE_STRIDE + col] = saved[p][r][b];
+                pg->plane[p][yy * LRV_PC98_STRIDE + col] = saved[p][r][b];
         }
-    gfx_mark_dirty(page, saved_x, saved_y, saved_x + saved_w, saved_y + saved_h);
-    saved_page = -1;
+    mark(pg, dirty);
+    saved_valid = 0;
 }

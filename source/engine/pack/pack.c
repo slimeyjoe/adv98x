@@ -1,8 +1,8 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* XPAK reader (pack.h). */
 #include "pack/pack.h"
-#include "util/endian.h"
-#include "ax_hal.h"
+#include "lrvne/endian.h"
+#include "lrvne/hal.h"
 
 static int name_eq(const char *a, const char *b)
 {
@@ -29,15 +29,15 @@ static int read_header(struct xpak *pk, uint32_t base, uint32_t avail)
         return -1;
     if (hdr[0] != 'X' || hdr[1] != 'P' || hdr[2] != 'A' || hdr[3] != 'K')
         return -1;
-    if (rd16le(hdr + 4) != XPAK_VERSION)
+    if (lrv_rd16le(hdr + 4) != XPAK_VERSION)
         return -1;
-    pk->count = rd16le(hdr + 6);
-    pk->total = rd32le(hdr + 8);
+    pk->count = lrv_rd16le(hdr + 6);
+    pk->total = lrv_rd32le(hdr + 8);
     pk->base = base;
     return pk->total <= avail ? 0 : -1;
 }
 
-int xpak_open(struct xpak *pk, const struct ax_hal *hal)
+int xpak_open(struct xpak *pk, const struct lrv_hal *hal)
 {
     uint32_t size, base = 0;
     uint8_t tr[XPKT_TRAILER_SIZE];
@@ -49,9 +49,9 @@ int xpak_open(struct xpak *pk, const struct ax_hal *hal)
     pk->entries = 0;
     pk->count = 0;
     pk->lang = XPAK_L_ANY;
-    pk->src = hal->pack_open(&size);
+    pk->src = hal->pack_open(LRV_PACK_MAIN, &size);
     if (!pk->src) {
-        hal->log(AX_LOG_ERROR, "pack: no asset pack found");
+        hal->log(LRV_LOG_ERROR, "pack: no asset pack found");
         return -1;
     }
     /* A bundled pack ends with a trailer that says how long it is. */
@@ -59,27 +59,27 @@ int xpak_open(struct xpak *pk, const struct ax_hal *hal)
         hal->pack_read(pk->src, size - XPKT_TRAILER_SIZE, tr, XPKT_TRAILER_SIZE) == XPKT_TRAILER_SIZE &&
         tr[0] == 'X' && tr[1] == 'P' && tr[2] == 'K' && tr[3] == 'T' &&
         tr[12] == 'X' && tr[13] == 'P' && tr[14] == 'K' && tr[15] == 'T') {
-        uint32_t psize = rd32le(tr + 4);
-        if ((rd32le(tr + 8) ^ psize) == 0xFFFFFFFFu && psize + XPKT_TRAILER_SIZE <= size)
+        uint32_t psize = lrv_rd32le(tr + 4);
+        if ((lrv_rd32le(tr + 8) ^ psize) == 0xFFFFFFFFu && psize + XPKT_TRAILER_SIZE <= size)
             base = size - XPKT_TRAILER_SIZE - psize;
         else {
-            hal->log(AX_LOG_ERROR, "pack: corrupt trailer");
+            hal->log(LRV_LOG_ERROR, "pack: corrupt trailer");
             return -1;
         }
     }
     if (read_header(pk, base, size - base) != 0) {
-        hal->log(AX_LOG_ERROR, "pack: bad header");
+        hal->log(LRV_LOG_ERROR, "pack: bad header");
         return -1;
     }
     tbl = (size_t)pk->count * XPAK_ENTRY_SIZE;
-    raw = hal->mem_alloc(tbl ? tbl : 1, AX_MEM_ANY);
-    pk->entries = hal->mem_alloc(sizeof(*pk->entries) * (pk->count ? pk->count : 1), AX_MEM_ANY);
+    raw = hal->mem_alloc(tbl ? tbl : 1, LRV_MEM_ANY);
+    pk->entries = hal->mem_alloc(sizeof(*pk->entries) * (pk->count ? pk->count : 1), LRV_MEM_ANY);
     if (!raw || !pk->entries) {
-        hal->log(AX_LOG_ERROR, "pack: out of memory");
+        hal->log(LRV_LOG_ERROR, "pack: out of memory");
         return -1;
     }
     if (hal->pack_read(pk->src, base + XPAK_HEADER_SIZE, raw, tbl) != tbl) {
-        hal->log(AX_LOG_ERROR, "pack: truncated entry table");
+        hal->log(LRV_LOG_ERROR, "pack: truncated entry table");
         hal->mem_free(raw, tbl ? tbl : 1);
         return -1;
     }
@@ -91,8 +91,8 @@ int xpak_open(struct xpak *pk, const struct ax_hal *hal)
             o->name[k] = (char)e[k];
         o->type = e[20];
         o->lang = e[21];
-        o->offset = rd32le(e + 24);
-        o->size = rd32le(e + 28);
+        o->offset = lrv_rd32le(e + 24);
+        o->size = lrv_rd32le(e + 28);
     }
     hal->mem_free(raw, tbl ? tbl : 1);
     return 0;
@@ -132,7 +132,7 @@ const struct xpak_entry *xpak_find(const struct xpak *pk, const char *name, int 
 
 uint8_t *xpak_load(const struct xpak *pk, const struct xpak_entry *e, uint32_t *size)
 {
-    uint8_t *buf = pk->hal->mem_alloc(e->size ? e->size : 1, AX_MEM_ANY);
+    uint8_t *buf = pk->hal->mem_alloc(e->size ? e->size : 1, LRV_MEM_ANY);
     if (!buf)
         return 0;
     if (pk->hal->pack_read(pk->src, pk->base + e->offset, buf, e->size) != e->size) {

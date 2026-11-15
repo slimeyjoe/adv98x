@@ -1,8 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* test_vm PAK STORAGE LANG KEYS: the whole engine on a pack, input from KEYS (comma-separated
  * hex words SSCC: PC-98 scan code and character, "-" for none; "RESET" presses the reset
- * button, after which the logs below start again). A key is given only while the engine waits
- * for input; when it waits and no key is left, or when the game ends, the state is
+ * button, after which the logs below start again). The engine gets each as a press of the
+ * host key that is this PC-98 key or, for a pair no key gives (the reference takes any), of a
+ * key that types the character. A key is given only while the engine waits for input; when it waits and no key is left, or when the game ends, the state is
  * printed and the program exits (also, with TEST_VM_STOP_SAVE=NAME, right after the game writes
  * the record NAME: END writes its unlock file and then loops for ever):
  *   end exit|starved|save
@@ -16,8 +17,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ax_internal.h"
-#include "hal_file.h"
+#include "ax.h"
+#include "test_hal.h"
 #include "gfx/cursor.h"
 #include "gfx/textlayer.h"
 
@@ -42,18 +43,20 @@ static void dump(const char *why)
     for (p = 0; p < 4; p++) {
         printf("plane ");
         for (i = 0; i < AX_PLANE_BYTES; i++)
-            printf("%02x", ax.page[0].p[p][i]);
+            printf("%02x", ax.screen.page[0].plane[p][i]);
         putchar('\n');
     }
     if (ax.bios.mouse_shown) {                  /* the frame as presented, with the pointer */
-        cursor_apply(0);
+        struct lrv_rect dirty;
+        lrv_rect_clear(&dirty);
+        cursor_apply(0, &ax.screen.page[0], &dirty);
         for (p = 0; p < 4; p++) {
             printf("pointer ");
             for (i = 0; i < AX_PLANE_BYTES; i++)
-                printf("%02x", ax.page[0].p[p][i]);
+                printf("%02x", ax.screen.page[0].plane[p][i]);
             putchar('\n');
         }
-        cursor_restore(0);
+        cursor_restore(0, &ax.screen.page[0], &dirty);
     }
     printf("tvram ");
     for (i = 0; i < 0x4000; i++)
@@ -61,7 +64,7 @@ static void dump(const char *why)
     putchar('\n');
     printf("dac");
     for (i = 0; i < 48; i++)
-        printf(" %d", ax.dac[i]);
+        printf(" %d", ax.screen.rgb[i]);
     putchar('\n');
     for (i = 0; i < g_nsound; i++)
         printf("sound %s\n", g_sound[i]);
@@ -70,9 +73,9 @@ static void dump(const char *why)
     fflush(stdout);
 }
 
-static void tv_trace(const struct ax_trace_event *ev)
+static void tv_trace(const struct lrv_trace_event *ev)
 {
-    if (ev->kind == AX_TR_QUIT) {               /* before the engine shuts down */
+    if (ev->kind == LRV_TR_QUIT) {               /* before the engine shuts down */
         dump("exit");
         exit(0);
     }
@@ -81,15 +84,15 @@ static void tv_trace(const struct ax_trace_event *ev)
         dump("save");
         exit(0);
     }
-    if (ev->kind == AX_TR_RESET) {              /* compared from here: the game as started anew */
+    if (ev->kind == LRV_TR_RESET) {              /* compared from here: the game as started anew */
         g_nsound = g_npal = 0;
         g_in_wait = 0;
     }
     if (getenv("TEST_VM_DEBUG") && (ev->kind == AX_TR_MENU_SEL || ev->kind == AX_TR_SCRIPT ||
-                                    (ev->kind == AX_TR_WAIT && ev->a0 != AX_WAIT_TICKS)))
+                                    (ev->kind == LRV_TR_WAIT && ev->a0 != AX_WAIT_TICKS)))
         fprintf(stderr, "ev %d %s a %d %d %d frame %lu\n", ev->kind, ev->name ? ev->name : "", ev->a0,
                 ev->a1, ev->a2, (unsigned long)g_frames);
-    if (ev->kind == AX_TR_WAIT && ev->a0 != AX_WAIT_TICKS) {
+    if (ev->kind == LRV_TR_WAIT && ev->a0 != AX_WAIT_TICKS) {
         g_in_wait = ev->a1 == 0;
         g_wait_kind = ev->a0;
         g_wait_polls = 0;
@@ -114,13 +117,37 @@ static void tv_trace(const struct ax_trace_event *ev)
     }
 }
 
-static void tv_poll(struct ax_input *in)
+/* the press of a host key that the PC-98 reports as (scan, chr) */
+static void tv_press(struct lrv_input *in, unsigned scan, unsigned chr)
+{
+    static const unsigned mods[] = { 0, LRV_MOD_CAPS, LRV_MOD_SHIFT, LRV_MOD_KANA,
+                                     LRV_MOD_KANA | LRV_MOD_SHIFT };
+    int any, key;
+    unsigned m;
+    for (any = 0; any <= (chr != 0); any++)
+        for (m = 0; m < sizeof mods / sizeof mods[0]; m++)
+            for (key = 1; key < LRV_K_COUNT; key++) {
+                struct lrv_keypress k;
+                struct lrv_pc98_key pk;
+                k.key = (uint8_t)key;
+                k.chr = 0;
+                k.mods = (uint8_t)mods[m];
+                if (lrv_pc98_keypress(&k, 0, &pk) && pk.chr == chr && (any || pk.scan == scan)) {
+                    in->keys[in->nkeys++] = k;
+                    return;
+                }
+            }
+    fprintf(stderr, "test_vm: no key gives scan %02X with character %02X\n", scan, chr);
+    exit(2);
+}
+
+static void tv_poll(struct lrv_input *in)
 {
     memset(in, 0, sizeof *in);
     if (!g_in_wait)
         return;
     if (g_next < g_nkeys && (g_keys[g_next] >> 28) == 3) {
-        in->events = AX_EV_RESET;
+        in->events = LRV_EV_RESET;
         g_next++;
         g_wait_polls = 0;
         return;
@@ -129,9 +156,7 @@ static void tv_poll(struct ax_input *in)
         if (g_wait_kind == AX_WAIT_CLICK) {
             g_next++;                           /* R*: up to the click-map wait */
         } else {
-            in->keys[0].scan = 0x1C;
-            in->keys[0].chr = 0x0D;
-            in->nkeys = 1;
+            tv_press(in, 0x1C, 0x0D);
             g_wait_polls = 0;
             return;
         }
@@ -140,15 +165,13 @@ static void tv_poll(struct ax_input *in)
         in->mouse_abs = 1;
         in->mouse_x = (int)((g_keys[g_next] >> 12) & 0xFFF);
         in->mouse_y = (int)(g_keys[g_next] & 0xFFF);
-        in->events = AX_EV_MOUSE_L;
+        in->events = LRV_EV_MOUSE_L;
         g_next++;
         g_wait_polls = 0;
         return;
     }
     if (g_next < g_nkeys && !(g_keys[g_next] >> 28) && g_wait_kind != AX_WAIT_CLICK) {
-        in->keys[0].scan = (uint8_t)(g_keys[g_next] >> 8);
-        in->keys[0].chr = (uint8_t)g_keys[g_next];
-        in->nkeys = 1;
+        tv_press(in, (g_keys[g_next] >> 8) & 0xFF, g_keys[g_next] & 0xFF);
         if (getenv("TEST_VM_DEBUG"))
             fprintf(stderr, "key %04X in wait %d at frame %lu\n", g_keys[g_next], g_wait_kind,
                     (unsigned long)g_frames);
@@ -162,7 +185,6 @@ static void tv_poll(struct ax_input *in)
     }
 }
 
-static void tv_flush(void) {}
 static void tv_frame(void)
 {
     if (++g_frames > 2000000) {
@@ -170,16 +192,7 @@ static void tv_frame(void)
         exit(0);
     }
 }
-static uint32_t tv_ticks(void) { return g_frames; }
-static int tv_vopen(const struct ax_video_cfg *c) { (void)c; return 0; }
-static void tv_vclose(void) {}
-static void tv_present(const struct ax_planes *pg, const struct ax_rect *d, int sw, int sl,
-                       const uint8_t rgb[48], int on)
-{
-    (void)pg; (void)d; (void)sw; (void)sl; (void)rgb; (void)on;
-}
-static int tv_aopen(int r) { (void)r; return 0; }
-static void tv_aclose(void) {}
+static int tv_sopen(const char *game_id) { (void)game_id; return 0; }
 
 static int tv_sread(const char *key, void *buf, size_t cap, size_t *len)
 {
@@ -207,10 +220,11 @@ static int tv_swrite(const char *key, const void *buf, size_t len)
 
 int main(int argc, char **argv)
 {
-    struct ax_hal hal;
-    struct ax_config cfg;
+    static struct ax_options options;           /* the game, not the viewer */
+    struct lrv_hal hal;
+    struct lrv_run_cfg cfg;
     char *k;
-    if (argc != 5 || tf_hal(&hal, argv[1]) != 0) {
+    if (argc != 5 || th_hal(&hal, argv[1]) != 0) {
         fprintf(stderr, "usage: test_vm PAK STORAGE LANG KEYS\n");
         return 2;
     }
@@ -227,14 +241,12 @@ int main(int argc, char **argv)
         } else if (strcmp(k, "-")) {
             g_keys[g_nkeys++] = (unsigned)strtoul(k, 0, 16);
         }
-    hal.video_open = tv_vopen; hal.video_close = tv_vclose; hal.video_present = tv_present;
-    hal.frame_wait = tv_frame; hal.ticks = tv_ticks;
-    hal.input_poll = tv_poll; hal.input_flush = tv_flush;
-    hal.audio_open = tv_aopen; hal.audio_close = tv_aclose;
-    hal.storage_read = tv_sread; hal.storage_write = tv_swrite;
+    hal.frame_wait = tv_frame;
+    hal.input_poll = tv_poll;
+    hal.storage_open = tv_sopen; hal.storage_read = tv_sread; hal.storage_write = tv_swrite;
     hal.trace = tv_trace;
-    memset(&cfg, 0, sizeof cfg);
-    cfg.language = xpak_lang_id(argv[3]);
-    ax_run(&hal, &cfg);
+    memset(&cfg, 0, sizeof cfg);                /* no audio */
+    cfg.lang = argv[3];
+    ax_run(&options, &hal, &cfg);
     return 1;
 }

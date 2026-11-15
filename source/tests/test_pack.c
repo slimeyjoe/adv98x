@@ -5,15 +5,15 @@
  *   find <TAB> L <TAB> name <TAB> type <TAB> lang of the entry xpak_find returns (or -)
  * tests/check_pack.py compares the output with tools/xpak.py. */
 #include <stdio.h>
-#include "ax_internal.h"
-#include "hal_file.h"
+#include "pack/pack.h"
+#include "test_hal.h"
 
 int main(int argc, char **argv)
 {
-    struct ax_hal hal;
+    struct lrv_hal hal;
     struct xpak pk;
     int i, l, a;
-    if (argc < 2 || tf_hal(&hal, argv[1]) != 0 || xpak_open(&pk, &hal) != 0) {
+    if (argc < 2 || th_hal(&hal, argv[1]) != 0 || xpak_open(&pk, &hal) != 0) {
         fprintf(stderr, "usage: test_pack PAK [NAME...]\n");
         return 2;
     }

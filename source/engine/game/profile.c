@@ -6,7 +6,7 @@
  *   modules=a,b,...      the plug-in modules (.TCM replacements) the game enables
  *   lang=ja              the default language */
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 
 static void copy_val(char *dst, size_t cap, const uint8_t *v, size_t n)
 {

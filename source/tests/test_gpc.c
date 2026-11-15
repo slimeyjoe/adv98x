@@ -7,9 +7,9 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "gfx/gpc.h"
-#include "hal_file.h"
+#include "test_hal.h"
 
 static uint8_t *read_file(const char *path, uint32_t *size)
 {
@@ -41,9 +41,9 @@ static uint64_t fnv(uint64_t h, const uint8_t *p, size_t n)
 
 int main(int argc, char **argv)
 {
-    struct ax_hal hal;
+    static struct lrv_hal hal;
     int i;
-    tf_hal(&hal, 0);
+    th_hal(&hal, 0);
     memset(&ax, 0, sizeof ax);
     ax.hal = &hal;
     if (argc >= 3 && !strcmp(argv[1], "decode")) {
@@ -86,11 +86,16 @@ int main(int argc, char **argv)
         uint32_t size;
         uint8_t *d = read_file(argv[2], &size);
         static uint8_t mem[4][AX_PLANE_BYTES];
-        struct ax_planes pl;
+        struct lrv_surface pl;
         uint64_t h = 1469598103934665603ull;
         int p, xb = atoi(argv[3]);
+        memset(&pl, 0, sizeof pl);
+        pl.format = LRV_FMT_PLANAR4;
+        pl.w = LRV_PC98_W;
+        pl.h = LRV_PC98_H;
+        pl.stride = LRV_PC98_STRIDE;
         for (p = 0; p < 4; p++) {
-            pl.p[p] = mem[p];
+            pl.plane[p] = mem[p];
             for (i = 0; i < AX_PLANE_BYTES; i++)
                 mem[p][i] = (uint8_t)((i * 7 + p * 29 + (i / 80) * 3) & 0xFF);
         }

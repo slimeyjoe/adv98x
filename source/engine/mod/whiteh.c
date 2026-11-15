@@ -3,7 +3,7 @@
  * or both (mode 2), in 15 steps (docs/re/plugins.md §4, §7.3). Every step replaces the palette
  * buffer and sets brightness 15 through INT F3h AH=13h (which waits for a VSYNC); before it,
  * s - 1 frames pass, so a step takes s frames. */
-#include "ax_internal.h"
+#include "ax.h"
 #include "bios/bios.h"
 #include "mod/mod.h"
 
@@ -35,7 +35,7 @@ static void half(int up, const uint16_t ref[16], unsigned speed)
             pal[i] = (uint16_t)((cur[i][2] & 15) << 8 | (cur[i][1] & 15) << 4 | (cur[i][0] & 15));
         }
         for (w = 1; w < speed; w++)
-            sys_frame_wait();
+            lrv_sys_frame_wait(&ax.sys);
         bg_set_palette(pal, 15);
     }
 }

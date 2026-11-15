@@ -64,10 +64,10 @@ struct xpak_entry {
     uint32_t size;
 };
 
-struct ax_hal;
+struct lrv_hal;
 
 struct xpak {
-    const struct ax_hal *hal;
+    const struct lrv_hal *hal;
     void *src;                    /* backend pack handle */
     uint32_t base;                /* offset of the pack inside the source (0, or inside an exe) */
     uint32_t total;
@@ -77,7 +77,7 @@ struct xpak {
 };
 
 /* Open the pack through the backend. Returns 0 on success, -1 on failure (logged). */
-int xpak_open(struct xpak *pk, const struct ax_hal *hal);
+int xpak_open(struct xpak *pk, const struct lrv_hal *hal);
 void xpak_close(struct xpak *pk);
 
 /* Look up an entry by name (case-insensitive) in the current language, then in the neutral

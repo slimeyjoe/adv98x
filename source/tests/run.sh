@@ -1,8 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Run the conformance tests. $1 = the build directory (../build/host), holding tests/ and the
-# engine. The data-free tests run first; the ones that need the imported game (make data) or
-# the pack (make pack) are skipped with a note when those are missing.
+# engine. The tests that need the imported game (make data) or the pack (make pack) are skipped
+# with a note when those are missing.
 # $2 = e2e: instead, play every story and ending through the engine and the original
 # interpreter and compare (check_vm.py's routes; long).
 set -u
@@ -43,12 +43,6 @@ skip() {
     echo "== $1: skipped ($2)"
 }
 
-# ---- data-free -----------------------------------------------------------------------------
-# the presentation test's frame sequence runs through the null backend's present path
-echo "== adv98x --present-test"
-n=$("$BUILD/adv98x" --present-test | grep -c '"ev":"snap"') || rc=1
-[ "${n:-0}" -gt 0 ] && echo "present-test: $n snapshots" || { echo "present-test: no snapshots"; rc=1; }
-
 # ---- with the imported game ----------------------------------------------------------------
 if $PY -I "$HERE/../tools/gamedata.py" check >/dev/null 2>&1; then
     HAVE_GAME=1
@@ -69,6 +63,11 @@ else
     skip "check_gpc, check_mes" "need the game"
 fi
 if [ -n "$HAVE_GAME" ] && [ -f "$PAK" ]; then
+    # the presentation test's frame sequence, through the headless backend's present path in
+    # the video mode the engine opens (it opens the pack first: the window's title is the game's)
+    echo "== adv98x --present-test"
+    n=$("$BUILD/adv98x" --pak "$PAK" --present-test | grep -c '"ev":"snap"') || rc=1
+    [ "${n:-0}" -gt 0 ] && echo "present-test: $n snapshots" || { echo "present-test: no snapshots"; rc=1; }
     run $PY -I "$HERE/check_run.py" "$BUILD/adv98x" "$PAK" "$ORIGINAL" --lang ja --frames 40000
     run $PY -I "$HERE/check_run.py" "$BUILD/adv98x" "$PAK" "$ORIGINAL" --lang en --frames 40000
     # the sound path end to end (service call, sequencer, OPN core): a song is heard

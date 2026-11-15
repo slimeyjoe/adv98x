@@ -5,7 +5,7 @@
  * are the player's records (HAL storage); everything else is read from the pack by base name,
  * the type from the extension, scripts in the current language. */
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "bios/bios.h"
 
 /* base name (no drive, no directories) upper-cased into out; returns the extension or "" */
@@ -71,7 +71,7 @@ long bios_file_read(const char *name, uint8_t *dst, uint32_t max)
     }
     e = xpak_find(&ax.pak, base, pack_type(ext));
     if (!e) {
-        sys_log(AX_LOG_WARN, "file: %s not found", name);
+        lrv_log(ax.hal, LRV_LOG_WARN, "file: %s not found", name);
         return -1;
     }
     return (long)xpak_read(&ax.pak, e, 0, dst, e->size < max ? e->size : max);
@@ -89,13 +89,13 @@ long bios_file_write(const char *name, const uint8_t *src, uint32_t n)
     char base[64], key[72];
     const char *ext = base_name(name, base, sizeof base);
     if (!is_record(base, ext)) {
-        sys_log(AX_LOG_WARN, "file: refusing to write %s", name);
+        lrv_log(ax.hal, LRV_LOG_WARN, "file: refusing to write %s", name);
         return -1;
     }
     record_key(base, ext, key, sizeof key);
     if (ax.hal->storage_write(key, src, n) != 0)
         return -1;
-    sys_trace(AX_TR_SAVE, key, 0, 0, (int)n, 0, 0);
+    lrv_sys_trace(&ax.sys, AX_TR_SAVE, key, 0, 0, (int)n, 0, 0);
     return (long)n;
 }
 

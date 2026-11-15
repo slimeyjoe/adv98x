@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* CHGFONTH.TCM: bold text on/off (docs/re/plugins.md §2, §7.1): bold = argc ? arg1 & 1 : 0 */
-#include "ax_internal.h"
+#include "ax.h"
 #include "mod/mod.h"
 
 static unsigned long chgfonth_exec(const uint16_t *args, int nargs)

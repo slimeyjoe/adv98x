@@ -4,8 +4,7 @@
  * lines; all four planes of the current drawing page. All commands; HALT (a debugging screen)
  * is a no-op. NOVA uses INIT, GET, PUT and FREE. */
 #include <string.h>
-#include "ax_internal.h"
-#include "gfx/gfx.h"
+#include "ax.h"
 #include "bios/bios.h"
 #include "mod/mod.h"
 
@@ -22,7 +21,7 @@ static struct {
 static void free_slot(int n)
 {
     if (st.slot[n].data)
-        sys_free(st.slot[n].data, st.slot[n].size);
+        lrv_free(ax.hal, st.slot[n].data, st.slot[n].size);
     memset(&st.slot[n], 0, sizeof st.slot[n]);
 }
 
@@ -47,7 +46,7 @@ static void acte1_load(void)
 
 static void fail(const char *cmd, const char *what)
 {
-    sys_log(AX_LOG_ERROR, "ACTE] > %s : %s", cmd, what);
+    lrv_log(ax.hal, LRV_LOG_ERROR, "ACTE] > %s : %s", cmd, what);
     st.error = 1;
 }
 
@@ -65,7 +64,7 @@ static unsigned number(const uint8_t **pp)
 
 static void get(unsigned n, unsigned x, unsigned y, unsigned w, unsigned h)
 {
-    struct ax_planes *pg = gfx_access();
+    struct lrv_surface *pg = lrv_screen_access(&ax.screen);
     uint32_t size = (uint32_t)w * h * 4u, k = 0;
     unsigned p, r, c;
     if ((uint32_t)w * h >= 16384u) {
@@ -75,7 +74,7 @@ static void get(unsigned n, unsigned x, unsigned y, unsigned w, unsigned h)
     if (n >= SLOTS)
         n &= SLOTS - 1;                 /* the original corrupts memory (§6.2) */
     free_slot((int)n);
-    st.slot[n].data = sys_alloc(size ? size : 1);
+    st.slot[n].data = lrv_xalloc(ax.hal, size ? size : 1);
     st.slot[n].size = size ? size : 1;
     st.slot[n].w = w;
     st.slot[n].h = h;
@@ -83,13 +82,13 @@ static void get(unsigned n, unsigned x, unsigned y, unsigned w, unsigned h)
         for (r = 0; r < h; r++)
             for (c = 0; c < w; c++) {
                 uint32_t off = ((y + r) * 80u + x + c) & 0xFFFF;
-                st.slot[n].data[k++] = off < AX_PLANE_BYTES ? pg->p[p][off] : 0;
+                st.slot[n].data[k++] = off < AX_PLANE_BYTES ? pg->plane[p][off] : 0;
             }
 }
 
 static void put(unsigned n, unsigned x, unsigned y)
 {
-    struct ax_planes *pg = gfx_access();
+    struct lrv_surface *pg = lrv_screen_access(&ax.screen);
     unsigned p, r, c, w, h;
     const uint8_t *d;
     if (n >= SLOTS) {
@@ -104,7 +103,7 @@ static void put(unsigned n, unsigned x, unsigned y)
     h = st.slot[n].h;
     d = st.slot[n].data;
     if (!st.over && st.show == st.acce)
-        sys_frame_wait();               /* wait for the start of the next VSYNC */
+        lrv_sys_frame_wait(&ax.sys);   /* wait for the start of the next VSYNC */
     for (p = 0; p < 4; p++)
         for (r = 0; r < h; r++)
             for (c = 0; c < w; c++) {
@@ -118,12 +117,13 @@ static void put(unsigned n, unsigned x, unsigned y)
                     unsigned q;
                     for (q = 0; q < 4; q++)
                         m |= d[((uint32_t)q * h + r) * w + c];
-                    pg->p[p][sy * 80 + sx] = (uint8_t)((pg->p[p][sy * 80 + sx] & ~m) | (v & m));
+                    pg->plane[p][sy * 80 + sx] =
+                        (uint8_t)((pg->plane[p][sy * 80 + sx] & ~m) | (v & m));
                 } else {
-                    pg->p[p][sy * 80 + sx] = v;
+                    pg->plane[p][sy * 80 + sx] = v;
                 }
             }
-    gfx_mark_dirty(ax.access_page, (int)x, (int)y, (int)(x + w), (int)(y + h));
+    lrv_screen_mark(&ax.screen, ax.screen.access_page, (int)x, (int)y, (int)(x + w), (int)(y + h));
 }
 
 /* a rectangle of `page` (byte columns, lines) into `buf`, plane after plane, no clipping */
@@ -134,7 +134,7 @@ static void grab(int page, unsigned x, unsigned y, unsigned w, unsigned h, uint8
         for (r = 0; r < h; r++)
             for (c = 0; c < w; c++) {
                 uint32_t off = ((y + r) * 80u + x + c) & 0xFFFF;
-                buf[k++] = off < AX_PLANE_BYTES ? ax.page[page].p[p][off] : 0;
+                buf[k++] = off < AX_PLANE_BYTES ? ax.screen.page[page].plane[p][off] : 0;
             }
 }
 
@@ -154,11 +154,11 @@ static void drop(int page, unsigned x, unsigned y, unsigned w, unsigned h, const
                     m |= buf[((uint32_t)p * h + r) * w + c];
             }
             for (p = 0; p < 4; p++) {
-                uint8_t *d = &ax.page[page].p[p][off];
+                uint8_t *d = &ax.screen.page[page].plane[p][off];
                 *d = (uint8_t)((*d & ~m) | (buf[((uint32_t)p * h + r) * w + c] & m));
             }
         }
-    gfx_mark_dirty(page, 0, (int)y, AX_PLANE_STRIDE, (int)(y + h + 1));
+    lrv_screen_mark(&ax.screen, page, 0, (int)y, LRV_PC98_STRIDE, (int)(y + h + 1));
 }
 
 static void copy(unsigned sp, unsigned x, unsigned y, unsigned w, unsigned h, unsigned dp,
@@ -170,18 +170,18 @@ static void copy(unsigned sp, unsigned x, unsigned y, unsigned w, unsigned h, un
         fail("COPY", "Overspec number");
         return;
     }
-    buf = sys_alloc(size ? size : 1);
+    buf = lrv_xalloc(ax.hal, size ? size : 1);
     grab((int)sp, x, y, w, h, buf);
     drop((int)dp, x2, y2, w, h, buf);
-    sys_free(buf, size ? size : 1);
+    lrv_free(ax.hal, buf, size ? size : 1);
     st.acce = (int)dp;                          /* COPY leaves the drawing page at dp */
-    gfx_set_access_page((int)dp);
+    lrv_screen_set_access(&ax.screen, (int)dp);
 }
 
 /* MOVE: within the drawing page, plane by plane, rows top to bottom, bytes left to right */
 static void move(unsigned x, unsigned y, unsigned w, unsigned h, unsigned x2, unsigned y2)
 {
-    struct ax_planes *pg = gfx_access();
+    struct lrv_surface *pg = lrv_screen_access(&ax.screen);
     unsigned p, r, c;
     if (x >= 80 || x2 >= 80 || y >= 400 || y2 >= 400 || (uint32_t)w * h >= 16384u) {
         fail("MOVE", "Overspec number");
@@ -195,15 +195,16 @@ static void move(unsigned x, unsigned y, unsigned w, unsigned h, unsigned x2, un
                 unsigned q;
                 if (so >= AX_PLANE_BYTES || d >= AX_PLANE_BYTES)
                     continue;
-                v = pg->p[p][so];
+                v = pg->plane[p][so];
                 if (st.over) {
                     m = 0;
                     for (q = 0; q < 4; q++)
-                        m |= pg->p[q][so];
+                        m |= pg->plane[q][so];
                 }
-                pg->p[p][d] = (uint8_t)((pg->p[p][d] & ~m) | (v & m));
+                pg->plane[p][d] = (uint8_t)((pg->plane[p][d] & ~m) | (v & m));
             }
-    gfx_mark_dirty(ax.access_page, 0, (int)y2, AX_PLANE_STRIDE, (int)(y2 + h + 1));
+    lrv_screen_mark(&ax.screen, ax.screen.access_page, 0, (int)y2, LRV_PC98_STRIDE,
+                    (int)(y2 + h + 1));
 }
 
 /* LOAD: a GPC picture by name (the next token, at most 40 characters), drawn at its own
@@ -279,7 +280,7 @@ static unsigned long acte1_exec(const uint16_t *args, int nargs)
         case 'w':
             a = number(&p);
             while (a--)
-                sys_frame_wait();
+                lrv_sys_frame_wait(&ax.sys);
             break;
         case 's':
             a = number(&p);
@@ -288,8 +289,8 @@ static unsigned long acte1_exec(const uint16_t *args, int nargs)
                 break;
             }
             st.show = (int)a;
-            sys_frame_wait();                   /* wait for the start of a VSYNC */
-            gfx_set_display_page((int)a);
+            lrv_sys_frame_wait(&ax.sys);   /* wait for the start of a VSYNC */
+            lrv_screen_set_display(&ax.screen, (int)a);
             break;
         case 'a':
             a = number(&p);
@@ -298,7 +299,7 @@ static unsigned long acte1_exec(const uint16_t *args, int nargs)
                 break;
             }
             st.acce = (int)a;
-            gfx_set_access_page((int)a);
+            lrv_screen_set_access(&ax.screen, (int)a);
             break;
         case 'c': {
             unsigned f, g, hh;

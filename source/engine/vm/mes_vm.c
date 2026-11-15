@@ -4,10 +4,10 @@
  * for blocks as the original does on the machine stack; the original's resets of SP (mes-jump,
  * exit, quit) are longjmps to the top level or to the sub-script's level. */
 #include <setjmp.h>
+#include <stdio.h>
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "bios/bios.h"
-#include "gfx/gfx.h"
 #include "gfx/textlayer.h"
 #include "mod/mod.h"
 #include "vm/mes.h"
@@ -45,16 +45,16 @@ static uint8_t byte_at(unsigned a)
 
 static void text_flush(void)
 {
-    if (text_len && AX_TRACING()) {
+    if (text_len && LRV_TRACING(&ax.sys)) {
         text_buf[text_len] = 0;
-        sys_trace(AX_TR_TEXT, 0, text_buf, 0, 0, 0, 0);
+        lrv_sys_trace(&ax.sys, AX_TR_TEXT, 0, text_buf, 0, 0, 0, 0);
     }
     text_len = 0;
 }
 
 static void text_add(unsigned dx)
 {
-    if (!AX_TRACING())
+    if (!LRV_TRACING(&ax.sys))
         return;
     if (text_len + 3 >= (int)sizeof text_buf)
         text_flush();
@@ -65,10 +65,10 @@ static void text_add(unsigned dx)
 
 static void trace_op(unsigned op, unsigned at)
 {
-    if (!AX_TRACING())
+    if (!LRV_TRACING(&ax.sys))
         return;
-    ax.script_pos = at;
-    sys_trace(AX_TR_OP, 0, 0, (int)op, 0, 0, 0);
+    ax.sys.script_pos = at;
+    lrv_sys_trace(&ax.sys, AX_TR_OP, 0, 0, (int)op, 0, 0, 0);
 }
 
 /* ---- operands (get_number 0xEC54, reg_addr 0xECA3, var_addr 0xECC2) ------------------------ */
@@ -122,7 +122,7 @@ static void reg_assign(unsigned w)
         M[bx] |= mask;
     else
         M[bx] &= (uint8_t)~mask;
-    sys_trace(AX_TR_FLAG, 0, 0, (int)((w & 0x3FF) - 1), (int)((w >> 10) & 1), 0, 0);
+    lrv_sys_trace(&ax.sys, AX_TR_FLAG, 0, 0, (int)((w & 0x3FF) - 1), (int)((w >> 10) & 1), 0, 0);
 }
 
 /* var_assign 0xDF6B */
@@ -138,7 +138,7 @@ static void var_assign(unsigned w)
     } else {
         M[bx] = (uint8_t)ch;
     }
-    sys_trace(AX_TR_FLAG, 0, 0, (int)bx, M[bx], 0, 0);
+    lrv_sys_trace(&ax.sys, AX_TR_FLAG, 0, 0, (int)bx, M[bx], 0, 0);
 }
 
 /* ---- scanners (skip_token 0xED3B, skip_block 0xEC22, skip_alt 0xECDF, copy_block 0xED25) ---- */
@@ -348,7 +348,7 @@ void vm_run(void)
         ah = byte_at(vm_si);
         al = byte_at(vm_si + 1);
         w = (ah << 8) | al;
-        ax.script_pos = vm_si;
+        ax.sys.script_pos = vm_si;
         vm_si += 2;
         if (w == 0xFFFF || w == 0xFFFE)
             return;
@@ -375,13 +375,13 @@ void vm_run(void)
                 /* a loop that waits for nothing (END.MES ends in `｛＠｝`) spins forever in the
                  * original; here it lets a frame pass every 1000 rounds, so the window stays
                  * alive and the player can quit */
-                if (ax.frame != spin_frame) {
-                    spin_frame = ax.frame;
+                if (ax.sys.frame != spin_frame) {
+                    spin_frame = ax.sys.frame;
                     spins = 0;
                 } else if (++spins >= 1000) {
                     spins = 0;
                     text_flush();
-                    sys_frame_wait();
+                    lrv_sys_frame_wait(&ax.sys);
                 }
                 continue;
             }
@@ -397,7 +397,7 @@ void vm_run(void)
                 n++;
             }
             buf[n] = 0;
-            if (AX_TRACING()) {
+            if (LRV_TRACING(&ax.sys)) {
                 unsigned i;
                 for (i = 0; i < n; i++)
                     text_add(buf[i]);
@@ -635,7 +635,8 @@ static void op_exec_file(void)                  /* B0 */
     vm_si++;
     copy_string(MES_FILENAME);
     if (!vm_get_number(&addr)) {
-        sys_log(AX_LOG_WARN, "exec-file %s: DOS programs are not run", mem_str(MES_FILENAME));
+        lrv_log(ax.hal, LRV_LOG_WARN, "exec-file %s: DOS programs are not run",
+                mem_str(MES_FILENAME));
         return;
     }
     vm_wr16(MES_CALL_TARGET, addr);
@@ -644,7 +645,7 @@ static void op_exec_file(void)                  /* B0 */
     if (vm_get_number(&entry))
         vm_wr16(MES_CALL_TARGET, entry);
     if (mod_exec(vm_rd16(MES_CALL_TARGET)) < 0)
-        sys_log(AX_LOG_ERROR, "exec-file %s: no module", mem_str(MES_FILENAME));
+        lrv_log(ax.hal, LRV_LOG_ERROR, "exec-file %s: no module", mem_str(MES_FILENAME));
 }
 
 /* mes-jump 0xE59A / 0xE5A1: load the script named at 0x9A and run it from the top level */
@@ -652,7 +653,7 @@ static void jump_to_name(void)
 {
     vm_wr16(MES_SUB_ACTIVE, 0);
     if (load_to(mem_str(MES_NAME), MES_SCRIPT) < 0)
-        sys_log(AX_LOG_ERROR, "mes-jump: cannot load %s", mem_str(MES_NAME));
+        lrv_log(ax.hal, LRV_LOG_ERROR, "mes-jump: cannot load %s", mem_str(MES_NAME));
     text_flush();
     longjmp(top_jb, UNWIND_JUMP);
 }
@@ -737,9 +738,9 @@ static void op_screen_mode(void)                /* B7 */
     /* INT 18h AH=42h: 400 (m bit 1) or 200 lines; the engine shows 400 */
     if (vm_get_number(&a)) {
         vm_get_number(&b);
-        gfx_graph_on(a == 0);
+        lrv_screen_set_display_on(&ax.screen, a == 0);
     } else {
-        gfx_graph_on(1);
+        lrv_screen_set_display_on(&ax.screen, 1);
     }
     if (vm_rd16(MES_SCREEN_MODE) != vm_rd16(MES_SCREEN_OLD)) {
         vm_wr16(MES_SCREEN_OLD, vm_rd16(MES_SCREEN_MODE));
@@ -884,7 +885,7 @@ static void op_flag_load(void)                  /* BF */
             return;
         }
         memcpy(M, M + MES_SAVEBUF, 256);
-        sys_trace(AX_TR_LOAD, save_name(n), 0, (int)n, 1, 0, 0);
+        lrv_sys_trace(&ax.sys, AX_TR_LOAD, save_name(n), 0, (int)n, 1, 0, 0);
         bios_select_drive(0, byte_at(MES_DRIVES));   /* F2h AX=0800h/0801h: drive state */
         jump_to_name();
     }
@@ -894,7 +895,7 @@ static void op_flag_load(void)                  /* BF */
         memcpy(M, M + MES_SAVEBUF, 0x80);
     if (m & 2)
         memcpy(M + MES_VARS, M + MES_SAVEBUF + 0x80, 0x1A);
-    sys_trace(AX_TR_LOAD, save_name(n), 0, (int)n, 2, (int)m, 0);
+    lrv_sys_trace(&ax.sys, AX_TR_LOAD, save_name(n), 0, (int)n, 2, (int)m, 0);
     bios_select_drive(0, byte_at(MES_DRIVES));
 }
 
@@ -950,7 +951,7 @@ static void op_anim(unsigned op)
         vm_get_number(&a);
         vm_get_number(&b);
     }
-    sys_log(AX_LOG_WARN, "opcode %02X (animation cells): not implemented yet (M5)", op);
+    lrv_log(ax.hal, LRV_LOG_WARN, "opcode %02X (animation cells): not implemented yet (M5)", op);
 }
 
 static void op_curtain(void)                    /* C6: INT F6h AH=0Fh, CH CL DH DL, AL */
@@ -1001,7 +1002,7 @@ static void op_image_file(void)                 /* C9 */
     n = bios_file_load(mem_str(MES_FILENAME), buf, cap);
     if (n >= 0) {
         ax.bios.piclen = (uint32_t)n;
-        strncpy(picture_name, mem_str(MES_FILENAME), sizeof picture_name - 1);
+        snprintf(picture_name, sizeof picture_name, "%.63s", mem_str(MES_FILENAME));
     }
 }
 
@@ -1068,7 +1069,7 @@ static void op_exec_mem(void)                   /* CD */
     vm_wr16(MES_ARGS, cnt);
     cx = mod_exec(addr);
     if (cx < 0) {
-        sys_log(AX_LOG_ERROR, "exec-mem %u: no module loaded there", addr);
+        lrv_log(ax.hal, LRV_LOG_ERROR, "exec-mem %u: no module loaded there", addr);
         return;
     }
     /* the result (0xE9F0): CH < 0 nothing; CH = 0 -> flag AX := CL != 0, where setting uses
@@ -1120,11 +1121,11 @@ static void op_image_show(void)                 /* CF */
         }
     }
     /* the call the copy protection patches in at 0xEA84 (interpreter.md §7) */
-    sys_trace(AX_TR_PICTURE, picture_name, 0, vm_rd16(blk + 8), vm_rd16(blk + 10),
+    lrv_sys_trace(&ax.sys, AX_TR_PICTURE, picture_name, 0, vm_rd16(blk + 8), vm_rd16(blk + 10),
               vm_rd16(blk + 12), vm_rd16(blk + 14));
     if (bg_draw_gpc(ax.bios.picbuf, ax.bios.piclen, vm_rd16(blk + 8), vm_rd16(blk + 10),
                     vm_rd16(blk + 12) != 0, vm_rd16(blk + 14)) != 0)
-        sys_log(AX_LOG_WARN, "image-show: no picture in the buffer");
+        lrv_log(ax.hal, LRV_LOG_WARN, "image-show: no picture in the buffer");
 }
 
 static void op_decrypt(void)                    /* D5 */
@@ -1132,7 +1133,7 @@ static void op_decrypt(void)                    /* D5 */
     unsigned key, a, end;
     vm_get_number(&key);
     if (!key) {
-        sys_log(AX_LOG_WARN, "decrypt 0: NV.INI's machine code is not run");
+        lrv_log(ax.hal, LRV_LOG_WARN, "decrypt 0: NV.INI's machine code is not run");
         return;
     }
     for (a = vm_si; a < 0xC000; a++)
@@ -1316,9 +1317,9 @@ static void op_dispatch(unsigned op)
     case 0xD6: case 0xD7: case 0xD8: break;
     default:
         /* the original indexes outside its handler table; no script does this */
-        sys_log(AX_LOG_ERROR, "%s %04X: byte %02X is not an opcode", ax.script_name ? ax.script_name : "",
-                at, op);
-        sys_trace(AX_TR_ERROR, 0, 0, (int)op, (int)at, 0, 0);
+        lrv_log(ax.hal, LRV_LOG_ERROR, "%s %04X: byte %02X is not an opcode",
+                ax.sys.script_name ? ax.sys.script_name : "", at, op);
+        lrv_sys_trace(&ax.sys, LRV_TR_ERROR, 0, 0, (int)op, (int)at, 0, 0);
         break;
     }
 }
@@ -1332,7 +1333,7 @@ void vm_init(void)
     static const uint16_t show_block[8] = { 0xA800, 0xB000, 0xB800, 0xE000, 0xFFFF, 0xFFFF, 0, 0xFFFF };
     int i;
     if (!ax.mem)
-        ax.mem = sys_alloc(0x10000 + 16);
+        ax.mem = lrv_xalloc(ax.hal, 0x10000 + 16);
     memset(M, 0, 0x10000 + 16);
     /* the interpreter's initialised data (NV.OVL image) */
     memcpy(M + MES_NAME_MARK, mark, sizeof mark);
@@ -1389,14 +1390,14 @@ void vm_run_game(const char *start)
         return;
     strncpy((char *)M + MES_NAME, start, 0xFD - MES_NAME - 1);
     if (load_to(start, MES_SCRIPT) < 0) {
-        sys_fatal("cannot find message file %s", start);
+        lrv_fatal(ax.hal, "cannot find message file %s", start);
         return;
     }
     tl_curtain(0xFF, 0, 0, 0x9F, 0x63);  /* restart 0xDCF6: F6h AX=0FFFh, DX=9F63h */
     r = setjmp(top_jb);
     if (r == 0 || r == UNWIND_JUMP) {
-        ax.script_name = (const char *)M + MES_NAME;
-        sys_trace(AX_TR_SCRIPT, (const char *)M + MES_NAME, 0, 0, 0, 0, 0);
+        ax.sys.script_name = (const char *)M + MES_NAME;
+        lrv_sys_trace(&ax.sys, AX_TR_SCRIPT, (const char *)M + MES_NAME, 0, 0, 0, 0, 0);
         if (r == 0) {                   /* restart 0xDD0E: the start script by a bare `run` */
             vm_si = MES_SCRIPT;
             vm_run();

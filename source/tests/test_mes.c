@@ -8,20 +8,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "vm/mes.h"
-#include "hal_file.h"
+#include "test_hal.h"
 
 int main(int argc, char **argv)
 {
-    struct ax_hal hal;
+    struct lrv_hal hal;
     FILE *f;
     long n, p;
     if (argc != 2 || !(f = fopen(argv[1], "rb"))) {
         fprintf(stderr, "usage: test_mes FILE.MES\n");
         return 2;
     }
-    tf_hal(&hal, 0);
+    th_hal(&hal, 0);
     memset(&ax, 0, sizeof ax);
     ax.hal = &hal;
     vm_init();

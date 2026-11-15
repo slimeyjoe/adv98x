@@ -5,7 +5,7 @@
 #define AX_GFX_GPC_H
 
 #include <stdint.h>
-#include "gfx/planes.h"
+#include "lrvne/surface.h"
 
 struct gpc_info {
     int w, h;                   /* pixels */
@@ -32,7 +32,7 @@ int gpc_decode_rows(const uint8_t *data, uint32_t size, const struct gpc_info *g
  * the next line); nothing is written beyond the planes. `written` (may be NULL) receives the
  * rectangle touched, in byte columns x lines. Returns 0, or -1 on a bad file. Palette flags
  * are the caller's (bios_gfx). */
-int gpc_draw(const uint8_t *data, uint32_t size, struct ax_planes *dst, int xb, int y,
-             int masked, struct ax_rect *written);
+int gpc_draw(const uint8_t *data, uint32_t size, struct lrv_surface *dst, int xb, int y,
+             int masked, struct lrv_rect *written);
 
 #endif

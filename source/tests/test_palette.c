@@ -6,36 +6,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "bios/bios.h"
-#include "gfx/gfx.h"
-#include "hal_file.h"
-
-static void tp_frame_wait(void) {}
-static void tp_poll(struct ax_input *in) { memset(in, 0, sizeof *in); }
-static void tp_present(const struct ax_planes *pg, const struct ax_rect *d, int sw, int sl,
-                       const uint8_t rgb[48], int on)
-{
-    (void)pg; (void)d; (void)sw; (void)sl; (void)rgb; (void)on;
-}
+#include "test_hal.h"
 
 int main(void)
 {
-    struct ax_hal hal;
+    struct lrv_hal hal;
     char line[1024];
-    tf_hal(&hal, 0);
-    hal.frame_wait = tp_frame_wait;
-    hal.input_poll = tp_poll;
-    hal.video_present = tp_present;
+    th_hal(&hal, 0);
     memset(&ax, 0, sizeof ax);
     ax.hal = &hal;
-    sys_init();
-    gfx_init();
+    lrv_sys_init(&ax.sys, &hal, LRV_PC98_W, LRV_PC98_H);
+    lrv_sys_set_present(&ax.sys, lrv_screen_present_hook, &ax.screen);
+    if (lrv_screen_init(&ax.screen, &hal, &lrv_pc98_video_mode, 2, 0, LRV_MEM_ANY) != LRV_OK)
+        return 2;
     bios_init();
     /* the hardware state AdvBIOS starts from in the harness: all colours 0, brightness 0 */
     memset(ax.palette, 0, sizeof ax.palette);
-    ax.brightness = 0;
-    memset(ax.dac, 0, sizeof ax.dac);
+    bg_program(0);
     while (fgets(line, sizeof line, stdin)) {
         char op[32], name[64];
         unsigned a, b, c;
@@ -63,7 +52,7 @@ int main(void)
             bg_get_palette(pal);
             printf("snap %s %d\n", name, bg_brightness());
             for (i = 0; i < 48; i++)
-                printf("%d%c", ax.dac[i], i < 47 ? ' ' : '\n');
+                printf("%d%c", ax.screen.rgb[i], i < 47 ? ' ' : '\n');
             for (i = 0; i < 16; i++)
                 printf("%03X%c", pal[i] == bg_get_entry(i) ? pal[i] : 0xFFFu, i < 15 ? ' ' : '\n');
         } else {

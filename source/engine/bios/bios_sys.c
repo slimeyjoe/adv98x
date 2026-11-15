@@ -1,9 +1,9 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* INT F1h, system services, waits and click maps (docs/re/advbios.md §4.1, §6.3, §6.4). The
- * waits count AdvBIOS's 20 ms ticks, which the engine derives from its frames (sys.c); each
+ * waits count AdvBIOS's 20 ms ticks, which the engine derives from its frames (bios_frame_tick); each
  * iteration of a waiting loop is one frame, where the original polled in a busy loop. */
 #include <string.h>
-#include "ax_internal.h"
+#include "ax.h"
 #include "bios/bios.h"
 
 void bios_init(void)
@@ -21,7 +21,60 @@ void bios_init(void)
     b->drive[0] = 0;
     b->drive[1] = 1;
     memset(ax.mailbox, 0, sizeof ax.mailbox);
+    bg_init();
     mouse_init();
+}
+
+/* AdvBIOS's timer interrupt counts 20 ms ticks (DS:00F8); the engine's clock is the frame */
+void bios_frame_tick(void *unused)
+{
+    (void)unused;
+    ax.tick_acc += AX_TICK_NUM;
+    while (ax.tick_acc >= AX_TICK_DEN) {
+        ax.tick_acc -= AX_TICK_DEN;
+        ax.tick++;
+    }
+}
+
+/* ---- the keyboard (INT 18h) ------------------------------------------------------------- */
+
+/* The presses the frames delivered so far go into the BIOS buffer as the PC-98 reports them:
+ * scan code and character. A host key the PC-98 does not have is no press; a press that finds
+ * the buffer full is lost, as on the machine. */
+static void kbd_fill(void)
+{
+    struct ax_bios *b = &ax.bios;
+    struct lrv_keypress k;
+    struct lrv_pc98_key pk;
+    while (lrv_sys_key_read(&ax.sys, &k))
+        if (lrv_pc98_keypress(&k, 0, &pk) && b->kcount < BIOS_KEYQ)
+            b->kbuf[(b->khead + b->kcount++) % BIOS_KEYQ] = pk;
+}
+
+int bios_key_sense(void)
+{
+    kbd_fill();
+    return ax.bios.kcount > 0;
+}
+
+unsigned bios_key_read(void)
+{
+    struct ax_bios *b = &ax.bios;
+    struct lrv_pc98_key k;
+    kbd_fill();
+    if (!b->kcount)
+        return 0xFFFFu;
+    k = b->kbuf[b->khead];
+    b->khead = (b->khead + 1) % BIOS_KEYQ;
+    b->kcount--;
+    return ((unsigned)k.scan << 8) | k.chr;
+}
+
+int bios_key_down(int scan)
+{
+    uint8_t map[LRV_PC98_KEYMAP_BYTES];
+    lrv_pc98_keymap(&ax.sys.in, 0, map);
+    return lrv_pc98_key_down(map, scan);
 }
 
 /* RNGAdvance 0000:01FE: state * 000F4241h + 3619h, result = high word & 7FFFh */
@@ -35,14 +88,14 @@ unsigned bios_random(void)
  * or the right button down (INT 33h AX=6) */
 int bios_skip_held(void)
 {
-    return sys_key_down(AX_K_SHIFT) || mouse_right() != 0;
+    return bios_key_down(LRV_PC98_K_SHIFT) || mouse_right() != 0;
 }
 
 /* AH=0Fh AL=0 (0000:0602): the STOP-key prompt arrives with M5; the host's quit request
  * (window close) counts as a confirmed quit */
 int bios_quit_poll(void)
 {
-    if (sys_quitting())
+    if (lrv_sys_quitting(&ax.sys))
         ax.bios.quit_flag = 1;
     return ax.bios.quit_flag ? 0xFFFF : 0;
 }
@@ -55,8 +108,8 @@ int bios_quit_flag(void)
 /* kbd_drain 0000:035A */
 static void kbd_drain(void)
 {
-    while (sys_key_sense())
-        sys_key_read();
+    while (bios_key_sense())
+        bios_key_read();
 }
 
 /* wait_release_flush 0000:033C: until the left button is up and no key is waiting */
@@ -66,19 +119,19 @@ static void wait_release_flush(void)
         if (mouse_left()) {
             if (bios_quit_poll())
                 return;
-            sys_frame_wait();
+            lrv_sys_frame_wait(&ax.sys);
             continue;
         }
-        if (!sys_key_sense())
+        if (!bios_key_sense())
             return;
-        sys_key_read();
+        bios_key_read();
     }
 }
 
 static int advance_key(void)
 {
-    unsigned k = sys_key_read() >> 8;
-    return k == AX_K_RETURN || k == AX_K_SPACE;
+    unsigned k = bios_key_read() >> 8;
+    return k == LRV_PC98_K_RETURN || k == LRV_PC98_K_SPACE;
 }
 
 /* apiF1_07_WaitInput 0000:02FC */
@@ -87,7 +140,7 @@ void bios_wait_input(void)
     int leave = AX_LEAVE_KEY;
     bg_anim_mode(1);
     wait_release_flush();
-    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_KEY, 0, 0, 0);
+    lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_KEY, 0, 0, 0);
     for (;;) {
         bg_anim_poll();
         bios_random();
@@ -99,16 +152,16 @@ void bios_wait_input(void)
             leave = AX_LEAVE_CLICK;
             break;
         }
-        if (sys_key_sense()) {
+        if (bios_key_sense()) {
             if (advance_key())
                 break;
             continue;                   /* other keys are discarded */
         }
-        sys_frame_wait();
+        lrv_sys_frame_wait(&ax.sys);
     }
     kbd_drain();
     bg_anim_mode(0);
-    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_KEY, 1, leave, 0);
+    lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_KEY, 1, leave, 0);
 }
 
 /* apiF1_08_WaitInputTimeout 0000:0364 */
@@ -119,7 +172,7 @@ void bios_wait_input_timeout(unsigned ticks, int skippable)
     bg_anim_mode(1);
     wait_release_flush();
     end = ax.tick + (ticks & 0xFFFF);
-    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_KEY, 0, (int)ticks, 0);
+    lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_KEY, 0, (int)ticks, 0);
     while ((int32_t)(end - ax.tick) > 0) {
         bg_anim_poll();
         if (bios_quit_poll()) {
@@ -134,18 +187,18 @@ void bios_wait_input_timeout(unsigned ticks, int skippable)
             leave = AX_LEAVE_CLICK;
             break;
         }
-        if (sys_key_sense()) {
+        if (bios_key_sense()) {
             if (advance_key()) {
                 leave = AX_LEAVE_KEY;
                 break;
             }
             continue;
         }
-        sys_frame_wait();
+        lrv_sys_frame_wait(&ax.sys);
     }
     kbd_drain();
     bg_anim_mode(0);
-    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_KEY, 1, leave, 0);
+    lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_KEY, 1, leave, 0);
 }
 
 static void timed(unsigned ticks, int skippable, int anim)
@@ -155,7 +208,7 @@ static void timed(unsigned ticks, int skippable, int anim)
     if (anim)
         bg_anim_mode(1);
     if (traced)
-        sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_TICKS, 0, (int)ticks, 0);
+        lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_TICKS, 0, (int)ticks, 0);
     while ((int32_t)(end - ax.tick) > 0) {
         if (anim)
             bg_anim_poll();
@@ -167,12 +220,12 @@ static void timed(unsigned ticks, int skippable, int anim)
             leave = AX_LEAVE_SKIP;
             break;
         }
-        sys_frame_wait();
+        lrv_sys_frame_wait(&ax.sys);
     }
     if (anim)
         bg_anim_mode(0);
     if (traced)
-        sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_TICKS, 1, leave, 0);
+        lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_TICKS, 1, leave, 0);
 }
 
 /* apiF1_09_Delay 0000:03F0 */
@@ -214,7 +267,7 @@ int bios_load_clickmap(const char *name)
     uint8_t f[0x7D5];
     long n = bios_file_read(name, f, sizeof f);
     unsigned need, bl, cl, bh, ch, i;
-    sys_trace(AX_TR_LOAD, name, 0, -1, (int)n, 0, 0);     /* a0 = -1: a click map */
+    lrv_sys_trace(&ax.sys, AX_TR_LOAD, name, 0, -1, (int)n, 0, 0);     /* a0 = -1: a click map */
     uint8_t *map = &ax.bios.clickmap[0][0];
     if (n < 5 || f[0] != 0)
         return -1;
@@ -255,12 +308,12 @@ unsigned bios_click_wait(int flags)
 {
     unsigned id = 0, x, y;
     mouse_show(1);
-    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_CLICK, 0, flags, 0);
+    lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_CLICK, 0, flags, 0);
 restart:
     while (mouse_buttons()) {
         if (bios_quit_poll())
             break;
-        sys_frame_wait();
+        lrv_sys_frame_wait(&ax.sys);
     }
     for (;;) {
         if (bios_quit_poll()) {
@@ -280,9 +333,9 @@ restart:
                 break;
             goto restart;
         }
-        sys_frame_wait();
+        lrv_sys_frame_wait(&ax.sys);
     }
     mouse_show(0);
-    sys_trace(AX_TR_WAIT, 0, 0, AX_WAIT_CLICK, 1, AX_LEAVE_CLICK, (int)id);
+    lrv_sys_trace(&ax.sys, LRV_TR_WAIT, 0, 0, AX_WAIT_CLICK, 1, AX_LEAVE_CLICK, (int)id);
     return id;
 }
