@@ -253,7 +253,7 @@ int ax_run(void *ctx, const struct lrv_hal *hal, const struct lrv_run_cfg *cfg)
         lrv_fatal(hal, "cannot open the display");
     /* VRAM pages 0 and 1; the pointer and, above it, the text layer exist only in the
      * presented picture */
-    if (lrv_screen_init(&ax.screen, hal, &video.mode, 2, 0, LRV_MEM_CHIP) != LRV_OK)
+    if (lrv_screen_init(&ax.screen, hal, &video.mode, 2, 0, LRV_MEM_ANY) != LRV_OK)
         lrv_fatal(hal, "out of memory (screen)");
     lrv_screen_add_overlay(&ax.screen, cursor_apply, cursor_restore, 0);
     lrv_screen_add_overlay(&ax.screen, tl_apply, tl_restore, 0);
