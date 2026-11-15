@@ -15,34 +15,15 @@ static struct { unsigned addr; const struct ax_module *m; } bound[MAXBOUND];
 static int nbound;
 static int enabled[NALL];
 
-static int name_eq(const char *a, const char *b)
-{
-    for (; *a && *b; a++, b++)
-        if ((*a | 0x20) != (*b | 0x20))
-            return 0;
-    return *a == *b;
-}
-
 void mod_init(const char *list)
 {
     int i;
     nbound = 0;
-    memset(enabled, 0, sizeof enabled);
     for (i = 0; i < NALL; i++)          /* a fresh start (also after a reset): nothing loaded */
         if (all[i]->load)
             all[i]->load();
-    while (list && *list) {
-        char w[32];
-        size_t n = strcspn(list, ",");
-        if (n >= sizeof w)
-            n = sizeof w - 1;
-        memcpy(w, list, n);
-        w[n] = 0;
-        for (i = 0; i < NALL; i++)
-            if (name_eq(w, all[i]->name))
-                enabled[i] = 1;
-        list += n + (list[n] == ',');
-    }
+    for (i = 0; i < NALL; i++)
+        enabled[i] = lrv_list_has(list, all[i]->name);
 }
 
 int mod_load(const char *file, unsigned addr)
@@ -60,7 +41,7 @@ int mod_load(const char *file, unsigned addr)
     memcpy(base, b, n);
     base[n] = 0;
     for (i = 0; i < NALL; i++) {
-        if (!enabled[i] || !name_eq(base, all[i]->name))
+        if (!enabled[i] || !lrv_name_eq(base, all[i]->name))
             continue;
         for (k = 0; k < nbound && bound[k].addr != addr; k++)
             ;

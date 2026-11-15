@@ -17,13 +17,13 @@ static int saved_x, saved_y, saved_w, saved_h, saved_valid;
 
 void cursor_init(void)
 {
-    const struct xpak_entry *e = xpak_find(&ax.pak, "cursor", XPAK_T_BLOB);
+    const struct lrv_pack_entry *e = lrv_pack_find(&ax.pack, "cursor", LRV_PT_BLOB);
     shape = 0;
-    if (e && (shape = xpak_load(&ax.pak, e, &shape_size)) != 0) {
+    if (e && (shape = lrv_pack_load(&ax.pack, e, &shape_size)) != 0) {
         sw = shape[0];
         sh = shape[1];
         if (sw < 1 || sw > 5 || sh < 1 || sh > MAXH || shape_size < 2u + 2u * (uint32_t)(sw * sh)) {
-            xpak_free(&ax.pak, shape, shape_size);
+            lrv_pack_free(&ax.pack, shape, shape_size);
             shape = 0;
         }
     }
@@ -40,7 +40,7 @@ void cursor_reset(void)
 void cursor_shutdown(void)
 {
     if (shape)
-        xpak_free(&ax.pak, shape, shape_size);
+        lrv_pack_free(&ax.pack, shape, shape_size);
     shape = 0;
 }
 

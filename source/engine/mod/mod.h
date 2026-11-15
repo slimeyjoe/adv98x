@@ -17,7 +17,7 @@ struct ax_module {
     unsigned long (*exec)(const uint16_t *args, int nargs);
 };
 
-void mod_init(const char *enabled);         /* comma-separated module names (the profile) */
+void mod_init(const char *enabled);         /* the profile's list of module names */
 /* load-mem of `file` at `addr`: 1 when a module took it (nothing is read into memory) */
 int  mod_load(const char *file, unsigned addr);
 /* exec-mem at `addr` with the block at 0xDA73; returns (AX << 16) | CX, or -1 when no module

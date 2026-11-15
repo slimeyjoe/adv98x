@@ -1,12 +1,12 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* The Adv98V 1.70.54 interpreter (NV.OVL): docs/re/interpreter.md, mes-format.md.
+/* The Adv98V 1.70.54 interpreter: docs/re/interpreter.md, mes-format.md.
  *
  * The interpreter's segment is modelled as real memory, `ax.mem` (64 KB), with the original
  * layout: flags at 0x0000, variables at 0x0080, script name 0x009A, drive bytes 0x00FD/FE, free
  * memory for plug-ins and data 0x0100-0x8FFF, the script at 0x9000, the sub-script buffer at
  * 0xC006, and the interpreter's variables from 0xD000 at their original addresses. The VM
- * executes script bytes exactly as NV.OVL does: the same operand reader and block scanners, `run`
- * recursing for blocks, unwinding to the top level on mes-jump / exit / quit. */
+ * executes script bytes exactly as the original does: the same operand reader and block
+ * scanners, `run` recursing for blocks, unwinding to the top level on mes-jump / exit / quit. */
 #ifndef AX_VM_MES_H
 #define AX_VM_MES_H
 
@@ -64,8 +64,8 @@
 #define MES_SAVEBUF      0xDB20          /* 256 bytes */
 
 void vm_init(void);
-/* Run the game from the start script (the profile's, NV.INI's target) until it ends: an end
- * marker in the main script, `exit`, or the player quitting. */
+/* Run the game from the start script (the profile's, named as the original's start file names
+ * it) until it ends: an end marker in the main script, `exit`, or the player quitting. */
 void vm_run_game(const char *start);
 
 /* memory access for the plug-in modules and the services */

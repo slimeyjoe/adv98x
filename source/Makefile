@@ -66,20 +66,23 @@ e2e: $(TEST_EXES) $(EXE)
 # ---------------------------------------------------------------------------------------------
 # The game's data (../docs/game-data.md), which the repository does not carry.
 #   make data SRC="DIR-or-image ..."  [DATA_PY=python with capstone/unicorn/pillow/numpy]
+# (without SRC: the directories named in the environment variable LRVNE_MEDIA)
 # imports the releases into ../resources/original/ (checked against ../resources/inventory.tsv)
 # and derives ../resources/derived/ (tools/gamedata.py derive; the parts that need a module
 # DATA_PY lacks are skipped with a note).
 # ---------------------------------------------------------------------------------------------
 DATA_PY  ?=
+LRVNE_PY   := python3 -I
+LRVNE_TOOL := $(LRVNE_PY) $(LRVNE)/tools/lrvne
 .PHONY: data data-derive data-check
 data:
-	$(Q)test -n "$(SRC)" || { echo "data: set SRC=<your copies of the game> (../docs/game-data.md)"; exit 1; }
-	$(Q)python3 -I tools/gamedata.py import $(SRC)
-	$(Q)python3 -I tools/gamedata.py derive $(if $(DATA_PY),--python $(DATA_PY)) $(DATA_PARTS)
+	$(Q)test -n "$(SRC)$$LRVNE_MEDIA" || { echo "data: set SRC=<your copies of the game> (../docs/game-data.md)"; exit 1; }
+	$(Q)$(LRVNE_PY) tools/gamedata.py import $(SRC)
+	$(Q)$(LRVNE_PY) tools/gamedata.py derive $(if $(DATA_PY),--python $(DATA_PY)) $(DATA_PARTS)
 data-derive:
-	$(Q)python3 -I tools/gamedata.py derive $(if $(DATA_PY),--python $(DATA_PY)) $(DATA_PARTS)
+	$(Q)$(LRVNE_PY) tools/gamedata.py derive $(if $(DATA_PY),--python $(DATA_PY)) $(DATA_PARTS)
 data-check:
-	$(Q)python3 -I tools/gamedata.py check
+	$(Q)$(LRVNE_PY) tools/gamedata.py check
 
 # Everything made from the original game outside ../build/ (the ignored paths of ../.gitignore)
 DATA_GENERATED := ../resources/original ../resources/derived
@@ -89,19 +92,22 @@ data-clean:
 distclean: clean data-clean
 
 # ---------------------------------------------------------------------------------------------
-# The pack: fonts (tools/xfont.py from the X11 bitmap fonts lrvne carries) and everything the
-# engine needs from the original game (tools/mkpack.py). The same for every target.
+# The pack: fonts (lrvne's xfont from the X11 bitmap fonts it carries) and everything the engine
+# needs from the original game (tools/mkpack.py, on lrvne's pack writer). The same for every
+# target. The pack is named after the program, which is where a backend looks for it; which game
+# it is, is in its profile (GAME=<id> chooses when mkpack.py knows several).
 # ---------------------------------------------------------------------------------------------
 X11FONTS ?= $(LRVNE)/fonts/x11
 ORIGINAL ?= ../resources/original
-PAK      ?= $(BUILDROOT)/nova.pak
+PAK      ?= $(BUILDROOT)/$(APP_NAME).pak
+GAME     ?=
 .PHONY: pack
 pack:
 	$(Q)mkdir -p $(BUILDROOT)/fonts
-	$(Q)python3 -I tools/xfont.py --no-bold -o $(BUILDROOT)/fonts/ank8.xfnt $(X11FONTS)/8x16rk.bdf >/dev/null
-	$(Q)python3 -I tools/xfont.py --no-bold -o $(BUILDROOT)/fonts/k16.xfnt $(X11FONTS)/jiskan16.bdf >/dev/null
-	$(Q)python3 -I tools/mkpack.py --original $(ORIGINAL) --fonts $(BUILDROOT)/fonts -o $(PAK)
-
+	$(Q)$(LRVNE_TOOL) xfont --no-bold -o $(BUILDROOT)/fonts/ank8.xfnt $(X11FONTS)/8x16rk.bdf >/dev/null
+	$(Q)$(LRVNE_TOOL) xfont --no-bold -o $(BUILDROOT)/fonts/k16.xfnt $(X11FONTS)/jiskan16.bdf >/dev/null
+	$(Q)$(LRVNE_PY) tools/mkpack.py --original $(ORIGINAL) --fonts $(BUILDROOT)/fonts \
+	    $(if $(GAME),--game $(GAME)) -o $(PAK)
 
 # ---------------------------------------------------------------------------------------------
 # Release archives. The version is engine/version.h's (the release is tagged v<version>).

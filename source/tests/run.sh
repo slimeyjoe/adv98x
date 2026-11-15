@@ -11,7 +11,7 @@ MODE=${2:-}
 BIN=$BUILD/tests
 HERE=$(cd "$(dirname "$0")" && pwd)
 ROOT=$(cd "$HERE/../.." && pwd)
-PAK=${PAK:-$ROOT/build/nova.pak}
+PAK=${PAK:-$ROOT/build/adv98x.pak}
 PY=${PYTHON:-python3}
 # the emulation references (AdvBIOS's own code under unicorn) need a Python with unicorn:
 # EMU_PYTHON, else the research venv when it exists (docs/re/README.md "Tools")

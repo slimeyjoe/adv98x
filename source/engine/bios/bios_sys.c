@@ -12,7 +12,7 @@ void bios_init(void)
     uint8_t *pic = b->picbuf;
     memset(b, 0, sizeof *b);
     b->picbuf = pic;
-    /* the initialised DGROUP of NV.OV1 (advbios.md §5.2 "Defaults") */
+    /* AdvBIOS's initialised DGROUP (advbios.md §5.2 "Defaults") */
     b->win[0] = 0; b->win[1] = 0; b->win[2] = 79; b->win[3] = 399;
     b->colour = 15;
     b->delay_skip = 0xFFFF;

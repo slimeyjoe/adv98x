@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* USDdrv / USDtrap V01.02, NOVA's music driver for the YM2203: the .USO sequencer, the two OPN
+/* USDdrv / USDtrap V01.02, AdvBIOS's music driver for the YM2203: the .USO sequencer, the two OPN
  * timers and the INT F4h music services. The C port of the verified clean-room model
  * re-tools/usdmodel.py (Lfo, Channel, FmChannel, SsgChannel, Sequencer, bind, Model), which
  * produces the original driver's register writes write for write and clock for clock

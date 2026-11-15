@@ -7,7 +7,6 @@
 #include <string.h>
 #include "ax.h"
 #include "bios/bios.h"
-#include "text/font.h"
 
 #define B (ax.bios)
 
@@ -211,7 +210,7 @@ void bt_draw_char(unsigned dx)
         dx = bios_sjis_to_jis(dx);
     }
     B.last_char = (uint16_t)dx;
-    width = font_rom_glyph(dx, rows);
+    width = lrv_font_rom_glyph(&ax.font16, &ax.font8, dx, rows);
     if (B.bold)
         make_bold(rows, width);
     if (B.colour == B.lip_colour[0])

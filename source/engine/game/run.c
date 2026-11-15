@@ -4,7 +4,6 @@
 #include <string.h>
 #include "ax.h"
 #include "gfx/gpc.h"
-#include "text/font.h"
 #include "gfx/cursor.h"
 #include "gfx/textlayer.h"
 #include "snd/snd.h"
@@ -19,10 +18,10 @@ struct ax_state ax;
 
 static int viewer_next(int from, int dir)
 {
-    int i, n = ax.pak.count;
+    int i, n = ax.pack.count;
     for (i = 1; i <= n; i++) {
         int k = ((from + dir * i) % n + n) % n;
-        if (ax.pak.entries[k].type == XPAK_T_GPC)
+        if (ax.pack.entries[k].type == AX_PT_GPC)
             return k;
     }
     return -1;
@@ -30,15 +29,13 @@ static int viewer_next(int from, int dir)
 
 static void viewer_show(int k)
 {
-    const struct xpak_entry *e = &ax.pak.entries[k];
+    const struct lrv_pack_entry *e = &ax.pack.entries[k];
+    const char *name = e->name;
     struct gpc_info g;
     struct lrv_rect w;
     uint32_t size;
-    uint8_t *data = xpak_load(&ax.pak, e, &size);
-    char name[XPAK_NAME_LEN + 1];
+    uint8_t *data = lrv_pack_load(&ax.pack, e, &size);
 
-    memcpy(name, e->name, XPAK_NAME_LEN);
-    name[XPAK_NAME_LEN] = 0;
     lrv_screen_clear_access(&ax.screen);
     if (!data || gpc_parse(data, size, &g) != 0) {
         lrv_log(ax.hal, LRV_LOG_WARN, "viewer: %s is not a GPC picture", name);
@@ -53,16 +50,24 @@ static void viewer_show(int k)
                 g.interleave);
     }
     if (data)
-        xpak_free(&ax.pak, data, size);
+        lrv_pack_free(&ax.pack, data, size);
+}
+
+/* a file of the game by its name, with or without its extension */
+static const struct lrv_pack_entry *pack_file(const char *name, const char *ext, int type)
+{
+    char file[LRV_PACK_NAME_LEN + 1];
+    snprintf(file, sizeof file, "%s%s", name, strchr(name, '.') ? "" : ext);
+    return lrv_pack_find(&ax.pack, file, type);
 }
 
 static int run_viewer(const char *first)
 {
     int k = -1;
     if (first) {
-        const struct xpak_entry *e = xpak_find(&ax.pak, first, XPAK_T_GPC);
+        const struct lrv_pack_entry *e = pack_file(first, ".GPC", AX_PT_GPC);
         if (e)
-            k = (int)(e - ax.pak.entries);
+            k = (int)(e - ax.pack.entries);
         else
             lrv_log(ax.hal, LRV_LOG_WARN, "viewer: no picture %s", first);
     }
@@ -116,15 +121,15 @@ static int run_viewer(const char *first)
  * fragments, per language: the pack's "messages" entry (tools/mkpack.py) */
 static void install_messages(void)
 {
-    const struct xpak_entry *e = xpak_find(&ax.pak, "messages", XPAK_T_STRINGS);
+    const struct lrv_pack_entry *e = lrv_pack_find(&ax.pack, "messages", LRV_PT_STRINGS);
     uint32_t size;
     uint8_t *d;
-    if (!e || !(d = xpak_load(&ax.pak, e, &size))) {
+    if (!e || !(d = lrv_pack_load(&ax.pack, e, &size))) {
         lrv_log(ax.hal, LRV_LOG_WARN, "pack: no built-in messages for this language");
         return;
     }
     vm_set_messages(d, size);
-    xpak_free(&ax.pak, d, size);
+    lrv_pack_free(&ax.pack, d, size);
 }
 
 /* The machine in its start-up state: both pages clear, page 0 shown and accessed, the display
@@ -155,13 +160,11 @@ static void reset_machine(void)
 
 static int run_game(void)
 {
-    char start[40];
-    snprintf(start, sizeof start, "\\MES\\%s.MES", ax.profile.start);
     for (;;) {
         vm_init();
-        mod_init(ax.profile.modules);
+        mod_init(ax.profile.base.modules);
         install_messages();
-        vm_run_game(start);
+        vm_run_game(ax.profile.start);
         if (!lrv_sys_resetting(&ax.sys))
             return 0;
         reset_machine();
@@ -170,42 +173,53 @@ static int run_game(void)
 
 /* ---- the engine --------------------------------------------------------------------------- */
 
+/* The pack, the game's profile and the language: --lang, else the profile's. */
 static int open_pack(const struct lrv_hal *hal, const struct lrv_run_cfg *cfg)
 {
+    const char *tag;
+    int rc;
     memset(&ax, 0, sizeof ax);
     ax.hal = hal;
-    if (xpak_open(&ax.pak, hal) != 0)
-        return LRV_ERR_NOTFOUND;
-    if (profile_load(&ax.profile) != 0)
-        lrv_log(hal, LRV_LOG_WARN, "pack: no game profile, using defaults");
-    ax.lang = cfg->lang && xpak_lang_id(cfg->lang) ? xpak_lang_id(cfg->lang)
-                                                    : ax.profile.default_lang;
-    ax.pak.lang = (uint8_t)ax.lang;
+    rc = lrv_pack_open(&ax.pack, hal, LRV_PACK_MAIN);
+    if (rc != LRV_OK)
+        return rc;
+    rc = profile_load();
+    tag = cfg->lang ? cfg->lang : ax.profile.base.lang;
+    if (rc == LRV_OK && !lrv_pack_lang_id(&ax.pack, tag)) {
+        lrv_log(hal, LRV_LOG_ERROR, "pack: no language \"%s\"", tag);
+        rc = LRV_ERR_NOTFOUND;
+    }
+    if (rc != LRV_OK) {
+        lrv_pack_close(&ax.pack);
+        return rc;
+    }
+    lrv_pack_set_lang(&ax.pack, lrv_pack_lang_id(&ax.pack, tag));
     return LRV_OK;
 }
 
-/* Offline: a song by its name in the pack ("NV01"; an extension is ignored) through the sound
- * path the game uses, the INT F4h services included. */
+/* Offline: a song by its name in the pack, with or without ".USO", through the sound path
+ * the game uses, the INT F4h services included. */
 int ax_render_music(void *ctx, const struct lrv_hal *hal, const struct lrv_run_cfg *cfg,
                     const char *name, double seconds, uint32_t *rate,
                     void (*sink)(void *sctx, const int16_t *pcm, int frames), void *sctx)
 {
     static int16_t buf[1024];
-    char song[XPAK_NAME_LEN + 1], file[XPAK_NAME_LEN + 8];
+    const struct lrv_pack_entry *song;
     double left;
-    int rc = LRV_ERR_NOTFOUND;
+    int rc;
     (void)ctx;
 
-    if (open_pack(hal, cfg) != LRV_OK)
+    rc = open_pack(hal, cfg);
+    if (rc != LRV_OK)
         return rc;
-    snprintf(song, sizeof song, "%.*s", (int)strcspn(name, "."), name);
-    snprintf(file, sizeof file, "%s.USO", song);
     lrv_sys_init(&ax.sys, hal, 0, 0);       /* the services report to it */
-    if (xpak_find(&ax.pak, song, XPAK_T_USO)) {
+    song = pack_file(name, ".USO", AX_PT_USO);
+    rc = song ? LRV_OK : LRV_ERR_NOTFOUND;
+    if (song) {
         snd_open(cfg, 0);
         *rate = lrv_mixer_rate(&ax.mixer);
         snd_stop();
-        snd_load_play(file);
+        snd_load_play(song->name);
         snd_play();
         for (left = seconds * *rate; left > 0; left -= 1024) {
             int n = left < 1024 ? (int)left : 1024;
@@ -213,9 +227,10 @@ int ax_render_music(void *ctx, const struct lrv_hal *hal, const struct lrv_run_c
             sink(sctx, buf, n);
         }
         snd_close();
-        rc = *rate ? LRV_OK : LRV_ERR;
+        if (!*rate)
+            rc = LRV_ERR;
     }
-    xpak_close(&ax.pak);
+    lrv_pack_close(&ax.pack);
     return rc;
 }
 
@@ -226,11 +241,11 @@ int ax_run(void *ctx, const struct lrv_hal *hal, const struct lrv_run_cfg *cfg)
     int rc;
 
     if (open_pack(hal, cfg) != LRV_OK)
-        lrv_fatal(hal, "cannot open the game pack (make pack; docs/game-data.md)");
+        lrv_fatal(hal, "cannot use the game pack (make pack; docs/game-data.md)");
 
     memset(&video, 0, sizeof video);
     video.mode = lrv_pc98_video_mode;
-    video.title = ax.profile.title;
+    video.title = ax.profile.base.title;
     video.fullscreen = cfg->fullscreen;
     video.scale_mode = cfg->scale_mode;
     video.host_mode = cfg->host_mode;
@@ -252,10 +267,12 @@ int ax_run(void *ctx, const struct lrv_hal *hal, const struct lrv_run_cfg *cfg)
     lrv_sys_add_hook(&ax.sys, LRV_HOOK_TICK, bios_frame_tick, 0);
 
     machine_init();
-    font_init();
+    if (lrv_font_load(&ax.font16, &ax.pack, "font16", 16, LRV_GLYPH_ROWS) != LRV_OK ||
+        lrv_font_load(&ax.font8, &ax.pack, "font8", 8, LRV_GLYPH_ROWS) != LRV_OK)
+        lrv_fatal(hal, "the pack lacks the fonts font16 and font8");
     cursor_init();
     snd_open(cfg, 1);
-    if (hal->storage_open("nova") != LRV_OK)
+    if (hal->storage_open(ax.profile.base.id) != LRV_OK)
         lrv_log(hal, LRV_LOG_WARN, "no storage: the game cannot save");
 
     rc = opt->view ? run_viewer(opt->view_picture) : run_game();
@@ -264,8 +281,9 @@ int ax_run(void *ctx, const struct lrv_hal *hal, const struct lrv_run_cfg *cfg)
     snd_close();
     hal->video_close();
     cursor_shutdown();
-    font_shutdown();
+    lrv_font_free(&ax.font8);
+    lrv_font_free(&ax.font16);
     lrv_screen_free(&ax.screen);
-    xpak_close(&ax.pak);
+    lrv_pack_close(&ax.pack);
     return rc;
 }

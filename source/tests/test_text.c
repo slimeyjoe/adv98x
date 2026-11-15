@@ -13,7 +13,6 @@
 #include <string.h>
 #include "ax.h"
 #include "bios/bios.h"
-#include "text/font.h"
 #include "test_hal.h"
 
 static int hexval(int c)
@@ -33,11 +32,12 @@ int main(int argc, char **argv)
     ax.hal = &hal;
     lrv_sys_init(&ax.sys, &hal, LRV_PC98_W, LRV_PC98_H);
     lrv_sys_set_present(&ax.sys, lrv_screen_present_hook, &ax.screen);
-    if (xpak_open(&ax.pak, &hal) != 0 ||
+    if (lrv_pack_open(&ax.pack, &hal, LRV_PACK_MAIN) != LRV_OK ||
+        lrv_font_load(&ax.font16, &ax.pack, "font16", 16, LRV_GLYPH_ROWS) != LRV_OK ||
+        lrv_font_load(&ax.font8, &ax.pack, "font8", 8, LRV_GLYPH_ROWS) != LRV_OK ||
         lrv_screen_init(&ax.screen, &hal, &lrv_pc98_video_mode, 2, 0, LRV_MEM_ANY) != LRV_OK)
         return 2;
     bios_init();
-    font_init();
     while (fgets(line, sizeof line, stdin)) {
         char op[32], arg[4000];
         int a[5] = { 0, 0, 0, 0, 0 };
@@ -108,7 +108,9 @@ int main(int argc, char **argv)
             return 2;
         }
     }
-    font_shutdown();
     lrv_screen_free(&ax.screen);
+    lrv_font_free(&ax.font8);
+    lrv_font_free(&ax.font16);
+    lrv_pack_close(&ax.pack);
     return 0;
 }

@@ -84,9 +84,10 @@ void mouse_set_emulation(unsigned cx);              /* AX=0Dh */
 unsigned mouse_emulation(void);                     /* AX=0Eh */
 
 /* ---- INT F2h: files and disks (bios_file.c) ---- */
-/* Names as the scripts give them ("B:\GPC\NV03.GPC", "A:\FLAG0", "MAP1.CLM"); the drive
- * letter and directories are dropped: pictures, songs, maps and scripts come from the pack by
- * name, FLAGn and NAME.DEF from the storage records (docs/engine-plan.md design point 8). */
+/* Names as the scripts give them ("B:\GPC\TITLE.GPC", "A:\FLAG0", "MAP1.CLM"); the drive
+ * letter and directories are dropped: a file of the game comes from the pack by its name, any
+ * other name (the interpreter's saves FLAGn, a plug-in's own file) is a storage record
+ * (docs/engine-plan.md design point 8). */
 long bios_file_load(const char *name, uint8_t *dst, uint32_t cap);      /* AH=00h, -1 = CF */
 long bios_file_read(const char *name, uint8_t *dst, uint32_t max);      /* AH=05h */
 long bios_file_write(const char *name, const uint8_t *src, uint32_t n); /* AH=01h */

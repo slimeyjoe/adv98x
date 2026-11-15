@@ -75,7 +75,7 @@ uint8_t *bg_picture_buffer(uint32_t *cap)
     return ax.bios.picbuf;
 }
 
-/* the animation cells (§5.4), unused by NOVA: the mode switch and the 2-tick step arrive with
+/* the animation cells (§5.4), not implemented yet: the mode switch and the 2-tick step arrive with
  * M5 together with the cell services */
 void bg_anim_mode(int on)
 {

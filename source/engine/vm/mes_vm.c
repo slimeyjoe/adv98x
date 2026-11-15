@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* The interpreter: NV.OVL 0xDC97-0xEE46 (docs/re/interpreter.md, mes-format.md). Function
+/* The interpreter: its code 0xDC97-0xEE46 (docs/re/interpreter.md, mes-format.md). Function
  * comments name the original routine and address. `vm_si` is the original's SI; `run` recurses
  * for blocks as the original does on the machine stack; the original's resets of SP (mes-jump,
  * exit, quit) are longjmps to the top level or to the sub-script's level. */
@@ -932,7 +932,7 @@ static void op_exit(void)                       /* D4 */
     longjmp(top_jb, UNWIND_END);
 }
 
-/* C1..C5: animation cells and scripts (advbios.md §5.4), unused by NOVA: M5 */
+/* C1..C5: animation cells and scripts (advbios.md §5.4): not implemented yet */
 static void op_anim(unsigned op)
 {
     unsigned a, b;
@@ -1133,7 +1133,7 @@ static void op_decrypt(void)                    /* D5 */
     unsigned key, a, end;
     vm_get_number(&key);
     if (!key) {
-        lrv_log(ax.hal, LRV_LOG_WARN, "decrypt 0: NV.INI's machine code is not run");
+        lrv_log(ax.hal, LRV_LOG_WARN, "decrypt 0: the start file's machine code is not run");
         return;
     }
     for (a = vm_si; a < 0xC000; a++)
@@ -1335,7 +1335,7 @@ void vm_init(void)
     if (!ax.mem)
         ax.mem = lrv_xalloc(ax.hal, 0x10000 + 16);
     memset(M, 0, 0x10000 + 16);
-    /* the interpreter's initialised data (NV.OVL image) */
+    /* the interpreter's initialised data (its image) */
     memcpy(M + MES_NAME_MARK, mark, sizeof mark);
     memcpy(M + MES_PLAYER, player, sizeof player);
     for (i = 0; i < 8; i++)

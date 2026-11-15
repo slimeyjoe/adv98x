@@ -2,7 +2,7 @@
 /* ACTE1.TCM: screen blocks (docs/re/plugins.md §6, §7.5). Commands are recognised by their first
  * letter, operands are unsigned decimal, `,` joins commands. x and w in byte columns, y and h in
  * lines; all four planes of the current drawing page. All commands; HALT (a debugging screen)
- * is a no-op. NOVA uses INIT, GET, PUT and FREE. */
+ * is a no-op. */
 #include <string.h>
 #include "ax.h"
 #include "bios/bios.h"

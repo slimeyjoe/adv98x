@@ -1,5 +1,5 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* Menus: `menu` (AD) and `menu2` (AE), NV.OVL 0xE042-0xE47A (docs/re/interpreter.md §4).
+/* Menus: `menu` (AD) and `menu2` (AE), the interpreter's 0xE042-0xE47A (docs/re/interpreter.md §4).
  * The item table at 0xD026 holds 16 entries of {index, x1, y1, x2, y2}; x in byte columns, y
  * in lines. Items whose conditions fail are not laid out but keep their index. */
 #include <string.h>

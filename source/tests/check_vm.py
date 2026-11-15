@@ -213,18 +213,17 @@ def run_reference(original, fonts, lang, saves, keys, script=None, stop=None):
 
 
 def script_pack(pak, script):
-    """the pack with RUN replaced by a test script (both languages)"""
-    sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
-    import xpak
-    pk = xpak.Pack()
-    for e in xpak.read(open(pak, 'rb').read()):
-        if e['type'] == xpak.T_MES and e['name'] == 'RUN':
-            continue
-        pk.entries.append((e['name'], e['type'], e['lang'], e['data']))
-    for lang in (xpak.L_JA, xpak.L_EN):
-        pk.add('RUN', xpak.T_MES, lang, script)
+    """the pack with the start script replaced by a test script (in every language)"""
+    sys.path.insert(0, os.path.join(HERE, '..', 'lrvne', 'tools'))
+    from lrvne import xpak
+    pack = xpak.read_pack(open(pak, 'rb').read())
+    out = xpak.PackWriter(langs=[pack.langs[i] for i in sorted(pack.langs)])
+    for e in pack.entries:
+        if e.name != xpak.LANGS_ENTRY:          # the writer makes that entry itself
+            out.add(e.raw_name, e.type, script if e.name == 'RUN.MES' else e.data,
+                    lang=e.lang_tag or None)
     path = os.path.join(tempfile.mkdtemp(prefix='adv98x-pak-'), 'test.pak')
-    open(path, 'wb').write(pk.build())
+    out.write(path)
     return path
 
 

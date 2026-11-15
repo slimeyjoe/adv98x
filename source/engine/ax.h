@@ -1,15 +1,16 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
 /* Adv98X: the engine's state, shared by its modules.
  *
- * The original is two programs with global state (NV.OVL, the interpreter, and NV.OV1,
- * AdvBIOS); the engine keeps that shape in one structure, `ax`, so the modules can be read next
- * to the research documents (docs/re/interpreter.md, advbios.md). Comments name the original
- * addresses where a field models one.
+ * The original is two programs with global state (the Adv98V interpreter and AdvBIOS); the
+ * engine keeps that shape in one structure, `ax`, so the modules can be read next to the
+ * research documents (docs/re/interpreter.md, advbios.md). Comments name the original
+ * addresses where a field models one: those of the two programs' images as docs/re has them.
  *
  * Everything below the interpreter and AdvBIOS's services is lrvne (source/lrvne, its headers
  * in lrvne/): the frame and the input queue (lrv_sys), the pages, the DAC and the presentation
- * (lrv_screen), the path from the music driver to samples (lrv_opnq, lrv_mixer), the pack, the
- * fonts. Their instances are members of `ax`; the engine calls lrvne directly. */
+ * (lrv_screen), the path from the music driver to samples (lrv_opnq, lrv_mixer), the pack
+ * (lrv_pack), the glyph tables (lrv_font), the profile parser. Their instances are members of
+ * `ax`; the engine calls lrvne directly. */
 #ifndef AX_H
 #define AX_H
 
@@ -17,13 +18,15 @@
 #include <stdint.h>
 #include "lrvne/app.h"
 #include "lrvne/core.h"
+#include "lrvne/font.h"
 #include "lrvne/gfx.h"
 #include "lrvne/hal.h"
 #include "lrvne/mixer.h"
 #include "lrvne/opnq.h"
+#include "lrvne/pack.h"
 #include "lrvne/pc98.h"
+#include "lrvne/profile.h"
 #include "lrvne/sys.h"
-#include "pack/pack.h"
 #include "bios/bios.h"
 #include "snd/usd.h"
 
@@ -70,12 +73,23 @@ enum ax_wait_kind {
 enum ax_wait_leave { AX_LEAVE_KEY = 0, AX_LEAVE_CLICK, AX_LEAVE_SKIP, AX_LEAVE_TIMEOUT,
                      AX_LEAVE_QUIT };
 
-/* ---- the game profile (game/profile.c, from the pack's "profile" entry) ---------------- */
+/* ---- the pack and the game profile ----------------------------------------------------- */
+
+/* The engine's entry types in a pack (lrvne/pack.h; tools/mkpack.py writes them). A file of the
+ * game is an entry under its own name ("TITLE.GPC"), byte for byte the original; scripts are
+ * entries of a language. */
+enum ax_pack_type {
+    AX_PT_GPC = LRV_PT_ENGINE,          /* picture */
+    AX_PT_USO,                          /* song or effect bank */
+    AX_PT_MES,                          /* script */
+    AX_PT_CLM                           /* click map */
+};
+
+/* What makes the engine run one particular game: the pack's "profile" entry (lrvne/profile.h;
+ * game/profile.c has the keys). */
 struct ax_profile {
-    char title[96];                     /* window title, UTF-8 */
-    char start[16];                     /* start script (NV.INI's target), e.g. "RUN" */
-    char modules[96];                   /* comma-separated plug-in modules the game enables */
-    int default_lang;                   /* XPAK_L_* */
+    struct lrv_profile_base base;       /* id, title, lang, modules (the plug-ins enabled) */
+    char start[64];                     /* the script the game starts with */
 };
 
 /* ---- the state ------------------------------------------------------------------------ */
@@ -83,9 +97,9 @@ struct ax_profile {
 struct ax_state {
     const struct lrv_hal *hal;
     struct lrv_sys sys;                 /* frames, the input queue, quit and reset, traces */
-    struct xpak pak;
+    struct lrv_pack pack;               /* its language is the one played */
     struct ax_profile profile;
-    int lang;
+    struct lrv_font font16, font8;      /* the kanji ROM: JIS X 0208 16x16, half-width 8x16 */
 
     /* graphics (advbios.md §5.1, §5.7): VRAM pages 0 and 1, the access page (port A6h), the
      * displayed one (port A4h) and the DAC are the screen's */
@@ -125,7 +139,7 @@ int ax_render_music(void *ctx, const struct lrv_hal *hal, const struct lrv_run_c
                     const char *name, double seconds, uint32_t *rate,
                     void (*sink)(void *sctx, const int16_t *pcm, int frames), void *sctx);
 
-/* game/profile.c */
-int profile_load(struct ax_profile *p);
+/* game/profile.c: the profile of ax.pack into ax.profile; LRV_OK, or what is wrong (logged) */
+int profile_load(void);
 
 #endif
