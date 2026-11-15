@@ -10,8 +10,8 @@ library of this engine and its siblings (submodule `source/lrvne`, public, C pre
 - `docs/re/README.md` — index of the research: interpreter, script format, AdvBIOS services,
   plug-ins, picture formats, music driver and sequencer, script catalogue, disks, other releases.
   **Read the relevant document before writing engine code; they are the specification.**
-- `docs/engine-plan.md` — the approved implementation plan (architecture, what is copied from
-  Xenon, milestones M0–M7, verification) with the current status at its top.
+- `docs/engine-plan.md` — the approved implementation plan (architecture, the layering on lrvne,
+  milestones M0–M7, verification) with the current status at its top.
 - `source/engine/` — the engine, and only what is its own: the interpreter (`vm/`), AdvBIOS's
   services (`bios/`), the GPC decoder, pointer and text layer (`gfx/`), the USD music driver
   (`snd/`), the plug-in modules (`mod/`), the run logic and profile (`game/`), `main.c` (the
@@ -40,17 +40,15 @@ library of this engine and its siblings (submodule `source/lrvne`, public, C pre
 
 ## Tests (`cd source && make TARGET=host test`, about 70 s)
 
-- `tests/run.sh` runs everything; data-free tests first, the rest skip with a note without the
-  imported game, the pack (`make pack`) or a Python with unicorn (`EMU_PYTHON=...`; without it
-  `python3` is tried).
+- `tests/run.sh` runs everything; a test skips with a note without the imported game, the pack
+  (`make pack`) or a Python with unicorn (`EMU_PYTHON=...`; without it `python3` is tried).
 - The headless backend is deterministic: `adv98x --pak P --autoplay SPEC` (snapshots with frame
   hashes at `snap:` ticks), `--control` (the line protocol the Python drivers use: `press`,
   `hold`, `mouse`, `snap`, `record`, `break`), `--render-wav F --song NAME [--opn lite]`,
   `--present-test`. Keys are lrvne's neutral names (`return`/`ok`, `esc`/`cancel`, `down`,
   `a`, `kp8`, ...); a press also shows in the key-down bitmap for the poll that delivers it.
 - Each check pairs a C test program (`tests/test_*.c`, linked with the engine and lrvne, HAL in
-  `tests/test_hal.h`) with a
-  Python comparer (`tests/check_*.py`) against a reference: `gpc.py`, `mes.py`, `usdmodel.py`
+  `tests/test_hal.h`) with a Python comparer (`tests/check_*.py`) against a reference: `gpc.py`, `mes.py`, `usdmodel.py`
   and the driver's recordings, AdvBIOS under emulation (`check_text`, `check_palette`), and the
   original interpreter (`check_vm.py`: scenarios on the game's scripts plus synthetic test
   scripts assembled in the check; memory, screen, DAC, text VRAM, saves, sound and palette calls
