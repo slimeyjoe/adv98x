@@ -390,7 +390,9 @@ void vm_run(void)
         }
         if (ah == 0x21) {                           /* `!` half-width string */
             uint16_t s = (uint16_t)(vm_si - 1);
-            uint8_t buf[512];
+            /* static: `run` recurses for every block and would carry it in each frame (the
+             * Amiga's stacks are small); drawing the string never re-enters `run` */
+            static uint8_t buf[512];
             unsigned n = 0;
             while (n < sizeof buf - 1 && byte_at(s + n) && byte_at(s + n) != 0xFF) {
                 buf[n] = byte_at(s + n);

@@ -6,6 +6,19 @@
 #include "ax.h"
 #include "version.h"
 
+/* The AmigaOS Version command looks for this text in the program file (`version adv98x`);
+ * elsewhere it is only a string. */
+const char ax_amiga_version[] = "$VER: adv98x " AX_VERSION " (" AX_VERSION_DATE ")";
+
+#if defined(__VBCC__) && defined(__M68K__)
+/* vbcc's AmigaOS startup swaps in a stack of this size when the program was started with a
+ * smaller one (4 KB, the default of a shell and of an icon that names none, is too little).
+ * The interpreter recurses for the script's blocks as the original did on the PC-98's stack;
+ * every story played through in 20 KB on x86-64, so 64 KB leaves room. The WarpOS startup has
+ * no such variable (docs/amiga.md). */
+size_t __stack = 65536;
+#endif
+
 static struct ax_options options;
 
 static const struct lrv_option option_table[] = {

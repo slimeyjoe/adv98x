@@ -1,0 +1,19 @@
+Options
+-------
+
+  LANG=ja|en          the language of the text
+  PAK=file            the game pack
+  WINDOW              in a window on the Workbench (or PUBSCREEN=name) instead of a screen
+  SCALE=1|2|3|auto    larger on a graphics card; ASPECT: in the shape of a 4:3 monitor
+  MODE=id             the screen mode (default HiRes Laced, 0x8004)
+  AUDIO=paula|ahi|none, AHIUNIT=n, RATE=Hz (default 11025), VOLUME=percent
+  OPN=lite2           a finer FM sound for about 1.6 times the CPU (a 68060)
+  PRELOAD=auto|yes|no the pack in memory (auto: when it fits with 1.5 MB to spare)
+  STORAGE=dir         where the saves go
+  QUIET               no messages in the shell
+  VIEW                browse the pack's pictures instead of playing (VIEW="" in the shell)
+
+On FFS without PRELOAD, `AddBuffers <volume> 200` before starting avoids pauses when the game
+loads a picture.
+
+

@@ -30,6 +30,10 @@ library of this engine and its siblings (submodule `source/lrvne`, public, C pre
   inventory framework with this game's hooks), `mkpack.py` (the pack's contents and the game
   profile), `mes.py` (script parser), `gpc.py` (picture decoder).
 - Build: `cd source && make pack && make TARGET=sdl3`; tests: `make TARGET=host test`.
+  The Amiga family (`TARGET=amiga|warpos|aros`, lrvne's Amiga backend, no ymfm): `docs/amiga.md`;
+  the engine must stay C99 as vbcc takes it, free of POSIX assumptions, endian-neutral (bytes
+  assembled explicitly, never a byte buffer cast to a wider type) and light on stack (the
+  interpreter recurses).
 - `re-tools/` — research tools (disassembly, emulation harnesses, verified reference models:
   `usdmodel.py` for the music sequencer, `gpc_verify.py`, `tcmtool.py`, `mesdis.py`, `mesgraph.py`).
   The engine's test references: `advbios_emu.py` (AdvBIOS's own INT F1h/F3h/F6h code under
@@ -57,7 +61,12 @@ library of this engine and its siblings (submodule `source/lrvne`, public, C pre
   choices, `--record` keeps the input, `--chain` plays stories in turn with a reset after each
   ending); `tests/e2e/stories.sh` plays all three stories in one run and checks the unlock files; `tests/e2e/present.py` checks the SDL3 backend's rendering offscreen (runs
   when `make TARGET=sdl3` was built).
-- `make TARGET=sdl3 dist` makes the player's archive (no pack), `make dist-src` the source one
+- `make TARGET=host be68k` (about 20 s): the whole engine built for m68k Linux and run under
+  qemu-m68k (big-endian) against the native build and the headless backend
+  (`tests/be68k/`); `make TARGET=aros test`: the AROS build in hosted AROS (`AROS_HOSTED`)
+  against the host build (`tests/aros/`). Neither is part of `make test`.
+- `make TARGET=sdl3 dist` makes the player's archive (no pack), `make TARGET=amiga|warpos|aros
+  dist` the Amiga family's .lha, `make dist-src` the source one
   (with the submodule's tree); the version is `engine/version.h`.
 - `make TARGET=host SAN=1 test` runs the same under the sanitizers (objects in `build/host-san`).
 - `make TARGET=host e2e` (about 15 minutes): `check_vm.py`'s routes, every story and ending in

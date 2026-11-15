@@ -1,13 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Adv98X engine - GNU Make 4
 #
-#   make [TARGET=host|sdl3] [V=1]   build the engine (default: host = the headless backend, for
-#                                  tests; sdl3 = the player)
+#   make [TARGET=...] [V=1]        build the engine for a target (default: host = the headless
+#                                  backend, for tests; sdl3 = the player; amiga, warpos, aros =
+#                                  the Amiga family's programs, ../docs/amiga.md)
 #   make data SRC="..."            import the original game from your copies (../docs/game-data.md)
 #                                  into ../resources/original/ and derive ../resources/derived/
 #   make pack                      build the game pack $(PAK) from the imported game
 #   make TARGET=host test [SAN=1]  build and run the conformance tests
+#   make TARGET=host be68k         the whole engine on a big-endian 68040 under qemu-m68k
+#   make TARGET=aros test          the AROS build in hosted AROS against the host build
 #   make TARGET=sdl3 dist          the player's archive ../build/sdl3/adv98x-<version>-<host>.tar.gz
+#   make TARGET=amiga|warpos|aros dist   the Amiga family's ../build/<target>/adv98x-<version>-<target>.lha
 #   make dist-src                  the source archive ../build/adv98x-<version>-src.tar.gz
 #   make clean                     remove ../build/
 #   make data-clean                remove everything made from the game outside ../build/
@@ -28,11 +32,28 @@ BUILD     := $(BUILDROOT)/$(TARGET)
 APP_NAME  := adv98x
 APP_SRCS  := $(sort $(wildcard engine/*.c engine/*/*.c))
 APP_INCLUDES := -Iengine
+# the version is engine/version.h's (the release is tagged v<version>)
+AX_VERSION  := $(shell sed -n 's/^\#define AX_VERSION *"\(.*\)"/\1/p' engine/version.h)
+APP_VERSION := $(AX_VERSION)
+
+# The Amiga family (lrvne/backends/amiga/README.md): its release archive (lrvne/mk/amiga-dist.mk)
+# is the drawer Adv98X with the program, the licence and a ReadMe put together from the parts in
+# dist/amiga/ (those all three share and the target's own). No icons: an icon is artwork of a
+# game, and the engine has none of its own.
+AMIGA_FAMILY := $(filter amiga warpos aros,$(TARGET))
+ifneq ($(AMIGA_FAMILY),)
+AMIGA_DIST := dist/amiga
+LRVNE_DIST_DRAWER := Adv98X
+LRVNE_DIST_README_PARTS := $(BUILDROOT)/$(TARGET)/ReadMe-title.txt \
+    $(addprefix $(AMIGA_DIST)/,about.txt requirements-$(TARGET).txt playing.txt \
+    options-$(if $(filter aros,$(TARGET)),aros,os3).txt saves.txt)
+LRVNE_DIST_FILES := ../LICENSE
+endif
 
 .DEFAULT_GOAL := all
 include $(LRVNE)/mk/lrvne.mk
 
-.PHONY: all clean test e2e
+.PHONY: all clean test e2e be68k
 all: $(EXE)
 
 clean:
@@ -44,6 +65,7 @@ clean:
 # tests/run.sh runs the data-free tests first; those that need the imported game are skipped
 # with a note when it is missing.
 # ---------------------------------------------------------------------------------------------
+ifeq ($(AMIGA_FAMILY),)
 TEST_SRCS := $(sort $(wildcard tests/*.c))
 TEST_EXES := $(patsubst tests/%.c,$(BUILD)/tests/%$(EXESUF),$(TEST_SRCS))
 # each test program is linked with the engine (without its main) and the library, no backend
@@ -62,6 +84,25 @@ test: $(TEST_EXES) $(EXE)
 # both languages; long (5-12 CPU minutes per route under emulation, run in parallel)
 e2e: $(TEST_EXES) $(EXE)
 	$(Q)tests/run.sh $(BUILD) e2e
+
+# big-endian: the engine and lrvne's library on a HAL of their own, built for m68k Linux and run
+# under qemu-m68k against the same program built natively, which must match the headless
+# backend (tests/be68k/be68k.sh; skipped without the cross compiler or qemu-m68k)
+be68k: $(EXE)
+	$(Q)tests/be68k/be68k.sh $(EXE) $(PAK) $(BUILD)/be68k; rc=$$?; [ $$rc -eq 77 ] || exit $$rc
+
+else ifeq ($(TARGET),aros)
+# The AROS program in hosted AROS (AROS_HOSTED in the environment; tests/aros/check_aros.py):
+# the presentation test and scripted runs of the game, every snapshot's frame hash and the
+# picture read back against the host build given the same input, which this builds first.
+test: $(EXE)
+	$(Q)$(MAKE) --no-print-directory TARGET=host
+	$(Q)python3 -I tests/aros/check_aros.py --aros-bin $(EXE) --host-bin $(BUILDROOT)/host/$(APP_NAME)$(EXESUF) \
+	    --pak $(PAK) $(CHECK_AROS)
+else
+test e2e:
+	@echo "$@: the $(TARGET) program has no test rig here (make TARGET=aros test runs the AROS one)"; exit 1
+endif
 
 # ---------------------------------------------------------------------------------------------
 # The game's data (../docs/game-data.md), which the repository does not carry.
@@ -116,11 +157,12 @@ pack:
 # ReadMe (dist/ReadMe.txt, @VERSION@ replaced) and the licences of what is in the executable.
 # The pack is not in it: it is the game's data, which the player builds from their own copy
 # (the ReadMe says how). A target that can be released has a name for its archives
-# (LRVNE_DIST_NAME of lrvne/mk/target/<TARGET>.mk).
+# (LRVNE_DIST_NAME of lrvne/mk/target/<TARGET>.mk). `make TARGET=amiga|warpos|aros dist`:
+# $(BUILD)/adv98x-<version>-<target>.lha (AROS: -aros-x86_64), which unpacks to the drawer
+# Adv98X/{adv98x, ReadMe.txt, LICENSE}, no pack either.
 # `make dist-src`: the committed tree at HEAD with the lrvne submodule's at its HEAD (git archive
 # leaves a submodule out; the repository holds no game data).
 # ---------------------------------------------------------------------------------------------
-AX_VERSION := $(shell sed -n 's/^\#define AX_VERSION *"\(.*\)"/\1/p' engine/version.h)
 DIST_README ?= dist/ReadMe.txt
 DIST_STRIP  ?= strip
 DIST        := $(BUILD)/adv98x-$(AX_VERSION)-$(LRVNE_DIST_NAME).tar.gz
@@ -130,6 +172,13 @@ SRCDIST_TMP := $(abspath $(BUILDROOT))/dist-src
 # no local user or group names in the archive (GNU tar / bsdtar spell it differently)
 TAR_ANON    := $(if $(shell tar --version 2>/dev/null | grep GNU),--owner=0 --group=0 --numeric-owner,--uid 0 --gid 0 --uname '' --gname '')
 .PHONY: dist dist-src
+ifneq ($(AMIGA_FAMILY),)
+# the Amiga family's .lha (lrvne's lrvne-dist; AMIGA_DIST above); the ReadMe's title with the version
+dist: lrvne-dist
+$(BUILDROOT)/$(TARGET)/ReadMe-title.txt: $(AMIGA_DIST)/title.txt engine/version.h
+	@mkdir -p $(dir $@)
+	$(Q)sed 's/@VERSION@/$(AX_VERSION)/g' $< >$@
+else
 dist: $(EXE)
 	$(Q)test -n "$(LRVNE_DIST_NAME)" || { echo "dist: no release archive for TARGET=$(TARGET)"; exit 1; }
 	$(Q)rm -rf $(DISTDIR) $(DIST)
@@ -142,6 +191,7 @@ dist: $(EXE)
 	@echo "  TAR   $(DIST)"
 	$(Q)cd $(DISTDIR) && tar $(TAR_ANON) -czf $(abspath $(DIST)) Adv98X
 	$(Q)tar -tzvf $(DIST)
+endif
 dist-src:
 	@echo "  TAR   $(SRCDIST)"
 	$(Q)rm -rf $(SRCDIST_TMP) && mkdir -p $(SRCDIST_TMP)

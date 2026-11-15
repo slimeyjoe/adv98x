@@ -55,16 +55,35 @@ Without `--pak` the program looks for the pack bundled into itself, then `adv98x
 only `.pak`) next to it, then in the current directory. Saves are the original's
 `FLAG0`–`FLAG9` and `NAME.DEF` in `$XDG_DATA_HOME/adv98x/nova` (docs/game-data.md "Saves").
 
+## Amiga, WarpOS, AROS
+
+The same engine builds for the Amiga family on lrvne's Amiga backend: AmigaOS 3.x on a 68020 or
+better (`make TARGET=amiga`, vbcc), PowerPC cards under WarpOS (`TARGET=warpos`, vbcc) and AROS
+x86_64 (`TARGET=aros`, the AROS gcc), with the light FM core (on the 68k its render loop in
+assembly). Toolchains, options, saves, what was changed for them, and how they are tested
+(the AROS build in hosted AROS, the whole engine on a big-endian 68040 under qemu-m68k):
+[`docs/amiga.md`](docs/amiga.md). The 68k and WarpOS programs build and link but have not been
+run yet.
+
+```sh
+make TARGET=amiga                  # -> build/amiga/adv98x (also warpos, aros)
+make TARGET=aros test              # the AROS program in hosted AROS (AROS_HOSTED=...)
+make TARGET=host be68k             # the engine big-endian (m68k-linux-gnu-gcc, qemu-m68k)
+```
+
 ## Release archives
 
 ```sh
 make TARGET=sdl3 dist    # ../build/sdl3/adv98x-<version>-sdl3-<os>-<arch>.tar.gz: the stripped
                          # executable, the player's ReadMe, the licences; no game data
+make TARGET=amiga dist   # ../build/amiga/adv98x-<version>-amiga.lha (warpos, aros alike): the
+                         # drawer Adv98X with the program, its ReadMe and the licence
 make dist-src            # ../build/adv98x-<version>-src.tar.gz: the committed tree with the
                          # lrvne submodule's
 ```
 
-The version is `source/engine/version.h`. The player's ReadMe is `source/dist/ReadMe.txt`.
+The version is `source/engine/version.h`. The player's ReadMe is `source/dist/ReadMe.txt`;
+the Amiga family's is put together from the parts in `source/dist/amiga/`.
 
 ## Licence
 

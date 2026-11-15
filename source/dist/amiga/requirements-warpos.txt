@@ -1,0 +1,17 @@
+What you need
+-------------
+
+* An Amiga with a PowerPC card under WarpOS (WarpUP 5.x, powerpc.library), AmigaOS 3.0 or newer.
+* An AGA or ECS screen in HiRes Laced (640x400, 16 colours), or a graphics card (Picasso96).
+* About 1.5 MB of free memory, 250 KB of it chip RAM on a native screen; 4.5 MB more lets the
+  program keep the whole pack in memory (PRELOAD).
+* Sound through Paula (the default) or AHI (AUDIO=ahi).
+* 64 KB of stack: give the icon a stack size of 65536, or type `Stack 65536` in the shell
+  before starting it.
+* The game pack, adv98x.pak, built on a PC from your own copy of the PC-98 release (and, for
+  English, the Fuzion translation) with the tools in Adv98X's source: `make data SRC=...` then
+  `make pack` (docs/game-data.md in the source). Copy it into this drawer.
+
+This build has not yet been run on a real machine or in an emulator; reports are welcome.
+
+
