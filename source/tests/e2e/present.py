@@ -5,7 +5,7 @@
 The game is played from RUN.MES in control mode (Return at every wait, the title's first item)
 with the window at a size and scale mode per run; at fixed stops the engine's frame (`snap`:
 the planes, palette and graphics-on flag handed to the backend) and what the renderer drew
-(`readback`, backends/control/control.c) are compared:
+(`readback`, lrvne's backends/control/control.c) are compared:
 
   * the destination rectangle is the one the scale mode prescribes for the drawable, centred
     (integer: the largest whole factor; aspect: whole factors with height = 1.2 x width; fit:

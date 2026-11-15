@@ -5,7 +5,9 @@ before M0 done, **M0–M4 done** (2026-11-14); M5 mostly done (left: animation c
 sound, STOP-key prompt — none used by NOVA); **M6 done** (2026-11-14): every story and ending,
 both languages, played through the engine and the original interpreter with identical results
 (`make TARGET=host e2e`). **M7 done** (2026-11-14): reset key, volume, `--help`/`--version`,
-release archives, README; what remains is in "Open items (after M7)" below. Update the status line and tick milestones here as
+release archives, README; what remains is in "Open items (after M7)" below. **On lrvne**
+(2026-11-15): the platform layer copied from Xenon at the start is gone, the engine is built on
+the shared library lrvne ("Layering" below). Update the status line and tick milestones here as
 they land; decisions taken while implementing are in "Implementation notes" at the end.
 
 ## Context
@@ -22,11 +24,12 @@ Decisions already made by the user:
 - Generic Adv98V engine, NOVA as its first game profile, no game-specific hacks in the engine;
   plug-in (`.TCM`) behaviour is provided by native modules that are enabled per game.
 - SDL3 first; keep the design open for the Amiga family later.
-- Start from a **copy** of Xenon's platform layer (`xenon/source`); a shared layer may be
-  considered later.
+- Start from a **copy** of Xenon's platform layer; a shared layer may be considered later
+  (it was: lrvne, see "Layering").
 - Licence **GPL-3** (as the Xenon port's files that were copied are). Bundled third-party code keeps its own licences (ymfm BSD-3, fonts).
 - Engine name **Adv98X**: binary `adv98x`, C prefix `ax_`. The repository and the game profile stay
-  `nova`; the pack is `nova.pak`.
+  `nova`; the pack was `nova.pak` and is `adv98x.pak` since the move to lrvne (a pack is found by
+  the program's name; the game is named by the pack's profile).
 - FM music first, CD-DA optional later. Japanese and English first; Polish is a later, separate
   effort and the player-name question is left open (the engine must not preclude either answer).
 - A fresh install starts locked (no `FLAG3`–`FLAG5`), like a new copy of the game.
@@ -36,35 +39,72 @@ Decisions already made by the user:
 
 ```
 source/
-  hal/ax_hal.h            platform interface (from xenon hal/xe_hal.h)
+  lrvne/                  the shared low-level library (git submodule), compiled into the engine:
+                          include/lrvne/*.h (hal, app, sys, gfx, font, pack, profile, opn, opnq,
+                          mixer, pc98, ...), src/, backends/ (null, sdl3, common, control), tools/
+                          (Python: pack, fonts, disk images, inventory), fonts/, third_party/ymfm
   engine/
-    ax.h, ax_internal.h   public entry (ax_run, ax_audio_render), the one state struct
-    sys.c                 the single blocking point: ticks, waits, input queue, per-tick hooks
-    gfx/                  planes.h p2c scale (as is); gfx.c (pages, dirty, palette + brightness);
-                          gpc.c (GPC decoder); cursor.c (mouse pointer, save-under)
-    text/                 font.c enc.c (as is / adapted); textwin.c (AdvBIOS text services)
+    main.c                the engine as a backend sees it: struct lrv_app (options, trace kind
+                          names, wait_is_input) and main = lrv_app_main
+    ax.h                  the one state struct (embeds lrv_sys, lrv_screen, lrv_pack, lrv_font,
+                          lrv_opnq, lrv_mixer), trace and wait kinds, pack entry types, the profile
+    gfx/                  gpc.c (GPC decoder); cursor.c (mouse pointer) and textlayer.c (the
+                          semigraphic curtain), both overlays of the screen
     bios/                 the AdvBIOS service layer the VM and the modules call:
-                          bios_sys.c (waits, RNG, quit, click maps), bios_file.c (files, drives,
-                          saves), bios_gfx.c (picture show, palette, brightness, animation cells),
-                          bios_text.c (window, cursor, char/string draw, fill, invert, scroll,
-                          curtain), bios_snd.c (INT F4h functions)
-    vm/                   mes_vm.c (the interpreter), mes_menu.c (menu / menu2), mes_mem.c (the
-                          64 KB script segment: flags, variables, script buffers, proc slots)
+                          bios_sys.c (20 ms tick, BIOS key buffer and key-down bitmap, waits, RNG,
+                          quit, click maps), bios_mouse.c (INT 33h, keyboard emulation),
+                          bios_file.c (files, drives, saves), bios_gfx.c (picture show, palette
+                          buffer, brightness), bios_text.c (window, cursor, char/string draw, fill,
+                          invert, scroll), bios_snd.c (INT F4h functions)
+    vm/                   mes_vm.c (the interpreter and its 64 KB segment), mes_menu.c (menu /
+                          menu2)
     mod/                  native plug-in modules + registry (mod.h): chgfonth.c, palch.c, whiteh.c,
                           inputnam.c, acte1.c
-    snd/                  opn_core.h opn_lite.c opn_lite_68k.s opn_ymfm.cpp (as is);
-                          opn_timers.c (timer A/B scheduler lifted from xenon pmd_seq.c);
-                          usd_seq.c (the USD sequencer); snd_api.c (render path, adapted)
-    game/                 profile.c (game profile from the pack), run.c (ax_run: init, start
-                          script, shutdown)
-    pack/                 pack.c (XPAK reader, adapted type/lang enums)
-    util/                 endian.h sjis.h utf8.h (as is)
-  backends/               sdl3/, null/, common/, control/ (from xenon; amiga later)
-  tools/                  gamedata.py diskimg.py mes.py gpc.py (exist); mkpack.py xpak.py xfont.py
-                          (from xenon, adapted); usoinfo-based checks stay in re-tools
-  tests/                  unit tests + e2e (rig from xenon)
-  fonts/, third_party/ymfm, config/*.mk, Makefile
+    snd/                  usd.c (the USD sequencer and the two OPN timers); snd.c (its place in
+                          front of lrvne's write queue and mixer; AdvBIOS's boot register writes)
+    game/                 profile.c (the profile's field table), run.c (ax_run: start-up, the
+                          game or the viewer, reset, shutdown; ax_render_music)
+  tools/                  what only this engine knows, on lrvne's tools: gamedata.py (inventory
+                          hooks, the PCK archive, derive), mkpack.py (the pack's contents, the
+                          game profiles), mes.py, gpc.py
+  tests/                  conformance tests (C programs + Python comparers) and e2e
+  dist/ReadMe.txt, Makefile (on lrvne/mk/lrvne.mk)
 ```
+
+### Layering: the engine on lrvne
+
+```
+   game profile + data     build/adv98x.pak, made from the player's copy (tools/mkpack.py)
+   -------------------------------------------------------------------------------------
+   engine (source/engine)  the Adv98V interpreter, AdvBIOS's services, the GPC decoder, the
+                           USD music driver, the plug-in modules, the game's run logic
+   -------------------------------------------------------------------------------------
+   lrvne (source/lrvne)    frame loop and input queue, screen (pages, DAC, overlays, present),
+                           PC-98 keyboard and video mode, OPN cores + write queue + mixer,
+                           glyph tables, pack, profile parser; backends null and SDL3 with the
+                           command line, paths, autoplay and the control protocol
+   -------------------------------------------------------------------------------------
+   host
+```
+
+- The engine keeps only what is its own. There is no engine HAL, backend, pack reader, font
+  loader or OPN core any more, and no adapter layer in between: engine code calls `lrv_*`
+  directly on the instances embedded in `ax` (`lrv_sys_frame_wait(&ax.sys)`,
+  `lrv_screen_mark(&ax.screen, ...)`). `source/lrvne/docs/architecture.md` describes the library,
+  `docs/porting-an-engine.md` there the steps this migration followed.
+- What stays engine code although it sits next to the library: AdvBIOS's 20 ms tick (a
+  `LRV_HOOK_TICK` hook, `bios_frame_tick`), the mouse driver's 120 Hz interrupts (a pump hook),
+  the BIOS key buffer and key-down bitmap made from neutral keys with `lrvne/pc98.h`, the
+  palette buffer and brightness (the DAC itself is the screen's), the timing of every fade, the
+  boot register writes of the sound chip.
+- Nothing about a particular game is compiled in: the storage directory is the profile's `id`,
+  the window title its `title`, the start script its `start` (as the original's start file
+  names it), the plug-ins enabled its `modules`; languages are the tags of the pack's `langs`
+  entry. The save names `FLAGn` and `NAME.DEF` remain because the interpreter and INPUTNAM
+  hard-code them. INT F2h decides by the pack: a name it has is a file of the game, any other
+  is a storage record.
+- lrvne is public and knows no engine and no game; a fix or a missing feature found here goes
+  into lrvne as a generic change with its own test, never into the engine as a workaround.
 
 ### Key design points
 
@@ -131,7 +171,11 @@ source/
     picture, sound, save) and the null backend + control protocol are carried over from Xenon and
     renamed, because the e2e tests are what proves the game is completable.
 
-### What is copied from Xenon (`xenon/source`)
+### History: what was copied from Xenon
+
+The engine started from a copy of the Xenon port's platform layer, as planned below. That layer,
+together with its siblings in the other engines, became lrvne and the copy was deleted
+(2026-11-15); the table is kept for the record.
 
 | Xenon | Here | Treatment |
 |---|---|---|
@@ -246,15 +290,15 @@ Where a new session picks up; nothing here blocks playing the game.
 
 ## Verification
 
-- `cd source && make data SRC=<your copies>` then `make pack` — import, inventory check,
+- `cd source && make data SRC="<your copies>"` then `make pack` — import, inventory check,
   pack build (fails loudly on anything missing).
 - `make TARGET=host test` — all unit and conformance tests above; every one compares against data
   produced from the original code or the verified Python tools, not against the engine itself.
 - `make TARGET=host e2e` — headless play of every route in both languages, compared with the
   original interpreter under emulation (about 15 minutes).
-- `make TARGET=sdl3 dist` — the player's archive; unpack it, put `nova.pak` next to `adv98x`,
+- `make TARGET=sdl3 dist` — the player's archive; unpack it, put `adv98x.pak` next to `adv98x`,
   run it (`--version`, `--help`).
-- `make TARGET=sdl3 && ../build/sdl3/adv98x --pak ../build/nova.pak [--lang en]` — manual play;
+- `make TARGET=sdl3 && ../build/sdl3/adv98x --pak ../build/adv98x.pak [--lang en]` — manual play;
   the user's eyes and ears are the final check on feel (text speed, fades, music balance), with
   DOSBox-X / NP2 runs of the original as the comparison when a doubt needs settling.
 
@@ -490,4 +534,55 @@ Decisions taken while implementing, where the work refined or departed from the 
   release.
 - *Verified at the end of M7:* `make TARGET=host test` and `make TARGET=host e2e` (all ten
   routes, both languages, identical to the original) pass.
+
+**lrvne (2026-11-15)**
+
+The engine was moved onto lrvne following its `docs/porting-an-engine.md`; "Layering" above is
+the result. What was decided on the way:
+
+- *Recorded before, compared after:* the present test, frame hashes of autoplay runs (both
+  languages: title, text, menus, name entry, Sound and Graphic mode, a load), control sessions
+  event for event with the hash of every changed frame (the same plus a save, a load after a
+  reset, held Shift), and songs rendered with both OPN cores. All identical with one exception,
+  which is the input model and not the engine: lrvne shows a key press as down in the key-down
+  bitmap for the poll that delivers it (on the machine a press lasts many polls), where the old
+  test backends delivered a press without a level. So Return pressed while a click map waits
+  is, with the keyboard mouse emulation on, a left click, as on the PC-98. The old build fed
+  press and level together produces the same frames and events as the new one.
+- *Keyboard.* The backends deliver neutral keys; `bios_sys.c` turns the presses into the BIOS
+  key buffer (scan code and character, `lrv_pc98_keypress`) and answers the key-down bitmap
+  from `lrv_pc98_keymap`. The control protocol's `key SCAN CHR` is gone with the old backends:
+  a test presses the host key that gives the character (`hold kana 1` for the kana layout);
+  `test_vm` does that translation for the (scan, character) pairs of `check_vm.py`.
+- *Pack.* lrvne's format 2. A file of the game is an entry under its own name (`RUN.MES`,
+  `NV01.GPC`) with one of the engine's types (`AX_PT_*`, from `LRV_PT_ENGINE`); INT F2h asks
+  the pack by name and takes every other name for a storage record, so the engine has no list
+  of save names and no table of extensions. The `lang` and `meta` entries nothing read are
+  gone. Languages are tags; `--lang` with a tag the pack lacks is an error.
+- *Profile.* `id`, `title`, `lang`, `modules` (lrvne's base keys) and `start`. `start` is the
+  full name the start file gives (`\MES\RUN.MES`): it ends up in the interpreter's memory and
+  in saves, so it is the game's, not a name the engine builds. `modules` lists the plug-ins by
+  their files' base names (`ACTE1`), matched exactly. A pack without a profile, an id or a
+  start script is refused.
+- *Game-specific items found and where they went:* storage directory name → profile `id`;
+  window title → `title` (was already); start script path → `start`; pack file name
+  `nova.pak` → `adv98x.pak`, found by the program's name; default song of `--render-wav`
+  (`CATS`) → none, `--song` is required; `FLAGn` / `NAME.DEF` in INT F2h → the pack decides;
+  compiled language ids ja/en/pl → the pack's `langs`; the two-disk picture rule, the place of
+  the built-in messages and the English messages were and stay in `mkpack.py`'s `PROFILES`.
+  Kept in the engine because the original code has them: `FLAG%d` (flag-save / flag-load),
+  `NAME.DEF` (name-load, INPUTNAM), the plug-ins' names.
+- *Presentation test.* `--present-test` runs in the video mode the engine opens, after the
+  pack (the window title is the game's): it moved from the data-free tests to the ones that
+  need the pack.
+- *Tools.* `gamedata.py` is lrvne's inventory framework with hooks; it now reads 7z/rar/lzh
+  archives and nested containers, and takes the Windows release's `EVE.PCK` out of the rar.
+  lrvne's sources have no hook for an archive format of a game's own, so the PCK is unpacked
+  in `on_entry` and imported from a temporary directory in `post_import`. The blank
+  end-of-directory entry of the PCK is no longer an inventory row.
+- *Fixed in lrvne on the way:* the SDL3 backend drew the fit-mode picture into a rectangle
+  with fractional edges, which lit a border column under the software renderer
+  (`tests/e2e/present.py` failed at 1000x700 before the migration too); the rectangle is now
+  on whole pixels.
+- *`make dist-src`* adds the submodule's tree to the archive (`git archive` leaves it out).
 

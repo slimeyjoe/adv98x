@@ -14,8 +14,8 @@ ROOT=$(cd "$HERE/../.." && pwd)
 PAK=${PAK:-$ROOT/build/adv98x.pak}
 PY=${PYTHON:-python3}
 # the emulation references (AdvBIOS's own code under unicorn) need a Python with unicorn:
-# EMU_PYTHON, else the research venv when it exists (docs/re/README.md "Tools")
-EMU_PY=${EMU_PYTHON:-python3}
+# EMU_PYTHON names it (docs/re/README.md "Tools"); without it $PY is tried
+EMU_PY=${EMU_PYTHON:-$(command -v "$PY")}
 ORIGINAL=$ROOT/resources/original
 OV1=$ROOT/resources/derived/exe/NV.OV1
 FONTS=$ROOT/build/fonts

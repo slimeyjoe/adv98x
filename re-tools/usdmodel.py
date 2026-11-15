@@ -20,7 +20,7 @@ register writes, clock for clock, as the original driver run by usdemu.py.
                                shapes, odd values, priorities, timer-B clocked tracks,
                                effect banks, stop-by-priority, fades with a threshold
         --synth-only runs only the last one.  Exit status 1 if anything differs.
-    (--check needs unicorn: $EMU_PYTHON)
+    (--check needs unicorn: docs/re/README.md "Tools")
 
 Model API (what an engine needs):
     m = Model()                    state right after AdvBIOS start-up

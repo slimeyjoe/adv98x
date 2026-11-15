@@ -6,7 +6,11 @@ the Japanese ones and the English translation by Fuzion — and aims to reproduc
 faithfully: text, pictures, palette effects, menus, click maps, saves and the FM music.
 
 The engine is written from the reverse-engineering notes in [`docs/re/`](docs/re/README.md); the
-implementation plan and its status are in [`docs/engine-plan.md`](docs/engine-plan.md).
+implementation plan and its status are in [`docs/engine-plan.md`](docs/engine-plan.md). It is
+the interpreter, AdvBIOS's services, the picture decoder, the music driver and the plug-ins;
+everything underneath (frame loop, screen, FM chip, fonts, the asset pack, the backends) is
+**lrvne**, a library shared with sibling engines, which lives in the git submodule
+`source/lrvne` and is compiled into the engine.
 
 **Status:** the game plays through, in Japanese and English: the original scripts with pictures,
 text, palette effects, menus, click maps, saves, name entry and the FM music. Verified against
@@ -22,47 +26,48 @@ The repository carries none of the game. Build the pack from your own copy:
 
 ## Building
 
-C99 and GNU Make; SDL3 for the playable build (`pkg-config sdl3`); Python 3 (standard library
-only) for the tools.
+C99, C++14 (the ymfm sound core) and GNU Make 4; SDL3 for the playable build (`pkg-config
+sdl3`); Python 3 (standard library only) for the tools.
 
 ```sh
+git submodule update --init    # source/lrvne
 cd source
 make data SRC="..."            # import your copy of the game (docs/game-data.md)
-make pack                      # -> build/nova.pak
+make pack                      # -> build/adv98x.pak
 make TARGET=sdl3               # -> build/sdl3/adv98x
-../build/sdl3/adv98x --pak ../build/nova.pak [--lang en]
-../build/sdl3/adv98x --pak ../build/nova.pak --view    # the picture viewer
+../build/sdl3/adv98x --pak ../build/adv98x.pak [--lang en]
+../build/sdl3/adv98x --pak ../build/adv98x.pak --view    # the picture viewer
 make TARGET=host test          # conformance tests (headless; the emulation references need
-                               # a Python with unicorn, see docs/re/README.md "Tools")
+                               # a Python with unicorn: EMU_PYTHON=..., docs/re/README.md "Tools")
 make TARGET=host e2e           # every story and ending, engine vs the original (~15 min)
 ```
 
 Options of the SDL3 build (`adv98x --help`): `--lang ja|en`, `--fullscreen`,
 `--scale integer|aspect|fit|stretch`, `--window WxH`, `--volume 0..100`, `--no-audio`,
-`--storage DIR`, `--pak FILE`, `--view [PICTURE]`, `--version`. Keys: the host keyboard is the
+`--opn ymfm|lite`, `--storage DIR`, `--pak FILE`, `--view [PICTURE]`, `--version`. Keys: the host keyboard is the
 PC-98's (Return, Space, Esc, cursor keys, Shift, Ctrl, …); the Kana key of a JIS keyboard or
 Scroll Lock toggles kana input (the JIS kana layout, for name entry); F11 or Alt+Return toggles
 fullscreen, F12 cycles the scaling, **Ctrl+Shift+R resets** (the game starts again at its title,
 saves kept: the way out of an ending, which loops for ever as on the PC-98), Shift+Esc quits at
 once.
 
-Without `--pak` the program looks for the pack bundled into itself, then `nova.pak` next to it,
-then in the current directory. Saves are the original's `FLAG0`–`FLAG9` and `NAME.DEF` in
-`$XDG_DATA_HOME/adv98x/nova` (docs/game-data.md "Saves").
+Without `--pak` the program looks for the pack bundled into itself, then `adv98x.pak` (or the
+only `.pak`) next to it, then in the current directory. Saves are the original's
+`FLAG0`–`FLAG9` and `NAME.DEF` in `$XDG_DATA_HOME/adv98x/nova` (docs/game-data.md "Saves").
 
 ## Release archives
 
 ```sh
 make TARGET=sdl3 dist    # ../build/sdl3/adv98x-<version>-sdl3-<os>-<arch>.tar.gz: the stripped
                          # executable, the player's ReadMe, the licences; no game data
-make dist-src            # ../build/adv98x-<version>-src.tar.gz: the committed tree (git archive)
+make dist-src            # ../build/adv98x-<version>-src.tar.gz: the committed tree with the
+                         # lrvne submodule's
 ```
 
-The version is `source/engine/version.h`. The player's ReadMe is
-`source/backends/sdl3/ReadMe.txt`.
+The version is `source/engine/version.h`. The player's ReadMe is `source/dist/ReadMe.txt`.
 
 ## Licence
 
-GPL-3.0-or-later ([`LICENSE`](LICENSE)). Bundled third-party material keeps its own licence: the
-X.Org bitmap fonts in `source/fonts/x11` (see its README) and ymfm, the OPN emulator, in
-`source/third_party/ymfm` (BSD 3-Clause).
+GPL-3.0-or-later ([`LICENSE`](LICENSE)), as is lrvne. Third-party material that lrvne carries
+keeps its own licence: the X.Org bitmap fonts in `source/lrvne/fonts/x11` (see its README) and
+ymfm, the OPN emulator, in `source/lrvne/third_party/ymfm` (BSD 3-Clause).

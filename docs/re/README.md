@@ -29,11 +29,13 @@ Windows release of 1996 (`EVE.PCK`), the FM Towns CD of 1993, and the English tr
 
 Build-side tools (stdlib only) are in `source/tools/`, research tools in `re-tools/`; each has its
 usage in its header. Run them with `python3 -I`; the emulation harnesses need `capstone` and
-`unicorn` (`python3 -m venv DIR && DIR/bin/pip install capstone unicorn pillow numpy`).
+`unicorn`: make a virtual environment for them (`python3 -m venv DIR && DIR/bin/pip install capstone unicorn pillow
+numpy`) and name its Python where one is asked for (`EMU_PYTHON` for the tests, `DATA_PY` /
+`--python` for `gamedata.py derive`; `$EMU_PYTHON` below).
 
 | Tool | Purpose | Verification |
 |---|---|---|
-| `source/tools/gamedata.py`, `diskimg.py` | import the releases (D88, FAT12/16, HDI, PCK) by name + md5 | 662 files of three releases |
+| `source/tools/gamedata.py` (on lrvne's `inventory`, `source`, `diskimg`) | import the releases (directories, archives, D88, FAT12/16, HDI; the Windows release's PCK) by name + md5 | 661 files of three releases |
 | `re-tools/exeunpack.py` | TC0 decryption + EXEPACK decompression of the executables | unpacked images disassemble and match the reference build's code |
 | `source/tools/mes.py`, `re-tools/mesdis.py` | script parser; lister, checker, exporter | all 236 scripts: every byte covered, block ends agree with the interpreter's scanner |
 | `re-tools/mesgraph.py` | transition graph, per-script summaries, reachability, picture resolution | 1038 picture references resolve to exactly one file |

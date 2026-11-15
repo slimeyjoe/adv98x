@@ -4,7 +4,7 @@
 segment 0328 of AdvBIOS 0.54 = NV.OV1) under the unicorn CPU emulator against a fake
 PC-9801-26K board (YM2203), and record every OPN register write (VGM + TSV).
 
-REQUIRES unicorn (venv: $EMU_PYTHON re-tools/usdemu.py ...).
+REQUIRES unicorn (run it with a Python that has it: docs/re/README.md "Tools").
 
 Usage:
     usdemu.py SONG.USO [-o out.vgm] [--log out.tsv] [--loops N] [--seconds S] [--raw]
@@ -110,7 +110,7 @@ class EmuError(Exception):
 class USDEmu:
     def __init__(self, ov1=None, musdir=None, cpu=3, verbose=False, init=True):
         if Uc is None:
-            raise EmuError('usdemu needs the unicorn package (use $EMU_PYTHON)')
+            raise EmuError('usdemu needs the unicorn package (docs/re/README.md "Tools")')
         self.verbose = verbose
         self.musdir = musdir or MUSDIR
         self.cpu = cpu

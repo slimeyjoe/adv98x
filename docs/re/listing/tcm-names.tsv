@@ -2,7 +2,7 @@
 # FILE<TAB>OFFSET (hex, from the start of the file)<TAB>name<TAB>comment
 # A comment starting with "data" marks data; everything else is a code entry.
 # Regenerate annotated listings (into resources/derived/listing/, not tracked):
-#     $EMU_PYTHON re-tools/tcmtool.py list
+#     $EMU_PYTHON re-tools/tcmtool.py list   (a Python with capstone)
 # Behaviour is documented in docs/re/plugins.md.
 CHGFONTH	0000	entry	AL = (argc ? arg1 & 1 : 0); INT F6h AH=13h; CH=FFh; near ret
 PALCH	0000	entry	stub: near return -> far, CS rebased to load offset/16 (offset must be a multiple of 16, else return at once)

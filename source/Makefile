@@ -117,13 +117,16 @@ pack:
 # The pack is not in it: it is the game's data, which the player builds from their own copy
 # (the ReadMe says how). A target that can be released has a name for its archives
 # (LRVNE_DIST_NAME of lrvne/mk/target/<TARGET>.mk).
-# `make dist-src`: the committed tree at HEAD (git archive; the repository holds no game data).
+# `make dist-src`: the committed tree at HEAD with the lrvne submodule's at its HEAD (git archive
+# leaves a submodule out; the repository holds no game data).
 # ---------------------------------------------------------------------------------------------
 AX_VERSION := $(shell sed -n 's/^\#define AX_VERSION *"\(.*\)"/\1/p' engine/version.h)
 DIST_README ?= dist/ReadMe.txt
 DIST_STRIP  ?= strip
 DIST        := $(BUILD)/adv98x-$(AX_VERSION)-$(LRVNE_DIST_NAME).tar.gz
 DISTDIR     := $(BUILD)/dist
+SRCDIST     := $(abspath $(BUILDROOT))/adv98x-$(AX_VERSION)-src.tar.gz
+SRCDIST_TMP := $(abspath $(BUILDROOT))/dist-src
 # no local user or group names in the archive (GNU tar / bsdtar spell it differently)
 TAR_ANON    := $(if $(shell tar --version 2>/dev/null | grep GNU),--owner=0 --group=0 --numeric-owner,--uid 0 --gid 0 --uname '' --gname '')
 .PHONY: dist dist-src
@@ -140,6 +143,9 @@ dist: $(EXE)
 	$(Q)cd $(DISTDIR) && tar $(TAR_ANON) -czf $(abspath $(DIST)) Adv98X
 	$(Q)tar -tzvf $(DIST)
 dist-src:
-	@echo "  TAR   $(BUILDROOT)/adv98x-$(AX_VERSION)-src.tar.gz"
-	$(Q)git -C .. archive --prefix=adv98x-$(AX_VERSION)/ -o $(abspath $(BUILDROOT))/adv98x-$(AX_VERSION)-src.tar.gz HEAD
-
+	@echo "  TAR   $(SRCDIST)"
+	$(Q)rm -rf $(SRCDIST_TMP) && mkdir -p $(SRCDIST_TMP)
+	$(Q)git -C .. archive --prefix=adv98x-$(AX_VERSION)/ HEAD | tar -xf - -C $(SRCDIST_TMP)
+	$(Q)git -C $(LRVNE) archive --prefix=adv98x-$(AX_VERSION)/source/lrvne/ HEAD | tar -xf - -C $(SRCDIST_TMP)
+	$(Q)tar $(TAR_ANON) -czf $(SRCDIST) -C $(SRCDIST_TMP) adv98x-$(AX_VERSION)
+	$(Q)rm -rf $(SRCDIST_TMP)

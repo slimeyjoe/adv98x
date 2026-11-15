@@ -5,7 +5,7 @@ code. The same scenario runs through test_text (engine/bios/bios_text.c) and thr
 handlers under unicorn (re-tools/advbios_emu.py); the screen (all four planes) and the text
 cursor must be identical at every snap.
 
-Needs Python with unicorn ($EMU_PYTHON) and the unpacked NV.OV1
+Needs a Python with unicorn (EMU_PYTHON, docs/re/README.md "Tools") and the unpacked NV.OV1
 (resources/derived/exe/, gamedata.py derive). FONTDIR holds the pack's k16.xfnt and ank8.xfnt:
 both sides draw from the same glyph tables through the same kanji-ROM model, so what is
 compared is AdvBIOS's logic: the GRCG writes, line pitch and wrapping, the bold quirk, the

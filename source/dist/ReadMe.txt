@@ -13,9 +13,9 @@ What you need
 -------------
 
 * SDL 3 (the shared library: libSDL3 from your package manager, Homebrew or MacPorts).
-* The game pack, nova.pak, built from your own copy of the PC-98 release (and, for English,
+* The game pack, adv98x.pak, built from your own copy of the PC-98 release (and, for English,
   the Fuzion translation) with the tools in Adv98X's source: `make data SRC=...` then
-  `make pack` (docs/game-data.md in the source). Put nova.pak next to the adv98x program, or
+  `make pack` (docs/game-data.md in the source). Put adv98x.pak next to the adv98x program, or
   name it with --pak.
 
 
@@ -27,7 +27,8 @@ Playing
     ./adv98x --help               all options
 
 Options: --lang ja|en, --fullscreen, --window WxH, --scale integer|aspect|fit|stretch,
---volume 0..100, --no-audio, --storage DIR, --pak FILE, --view (browse the pictures).
+--volume 0..100, --no-audio, --opn ymfm|lite, --storage DIR, --pak FILE, --view (browse the
+pictures).
 
 The keyboard is the PC-98's: Return and Space go on, the cursor keys move in menus, Esc
 cancels, Shift held skips text. The mouse works as on the PC-98: click to go on, click menu

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """advbios_emu - AdvBIOS's own service code (NV.OV1) under unicorn, as a reference for tests.
 
-Library (needs unicorn; run with $EMU_PYTHON):
+Library (needs unicorn; docs/re/README.md "Tools"):
 
     emu = AdvBiosEmu(ov1='resources/derived/exe/NV.OV1', fonts='build/fonts')
     emu.call(0xF6, ax=0x0300 | 4)               # INT F6h AH=03h: colour 4

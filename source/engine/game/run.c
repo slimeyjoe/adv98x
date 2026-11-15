@@ -147,8 +147,8 @@ static void machine_init(void)
  * start the game again): the game unwinds as for a quit, then the machine is put back into its
  * start-up state - screen, palette, text layer, sound, AdvBIOS, the interpreter's memory, the
  * plug-ins - and the game starts again from its start script. The storage (saves, the player's
- * name) is kept, as the floppy keeps it. This is how the player leaves an ending, which loops
- * for ever in the original (END.MES). */
+ * name) is kept, as the floppy keeps it. This is how the player leaves a script that never
+ * ends, as the scripts of endings do. */
 static void reset_machine(void)
 {
     snd_reset();
