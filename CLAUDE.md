@@ -65,6 +65,17 @@ library of this engine and its siblings (submodule `source/lrvne`, public, C pre
   qemu-m68k (big-endian) against the native build and the headless backend
   (`tests/be68k/`); `make TARGET=aros test`: the AROS build in hosted AROS (`AROS_HOSTED`)
   against the host build (`tests/aros/`). Neither is part of `make test`.
+- The engine's teardown: the engine is asked to quit at `--max-ticks` and must have freed
+  everything it allocated through the HAL when `run` returns, or lrvne's headless backend ends
+  with exit code 1 ("memory: N bytes in M blocks not freed by the engine"); the teardown run in
+  `tests/run.sh` (to `--max-ticks`, expects exit code 3) keeps it so. Memory an engine part
+  allocates on first use needs a shutdown function called at the end of the run. Here:
+  `vm_shutdown`, `bios_shutdown`, and a module's `shutdown` member (`mod_shutdown`; ACTE1 drops
+  its blocks); the teardown run plays the AROS check's schedule, which reaches ACTE1.
+- Hosted AROS with sound: lrvne's rig runs AROS without PipeWire's data-loop threads (its ALSA
+  driver otherwise lets that thread take AROS's timer signal and AROS crashes now and then;
+  `lrvne/rigs/README.md`, "Hosted AROS and PipeWire"; `AROS_PW_DATA_LOOPS=1` to see it), and fails
+  any run whose AROS log shows a crash.
 - `make TARGET=sdl3 dist` makes the player's archive (no pack), `make TARGET=amiga|warpos|aros
   dist` the Amiga family's .lha, `make dist-src` the source one
   (with the submodule's tree); the version is `engine/version.h`.
