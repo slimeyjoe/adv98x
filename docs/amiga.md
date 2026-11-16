@@ -55,9 +55,10 @@ arrays that never meet a byte buffer. The pack, the fonts and the profile are lr
 
 ## Testing
 
-* **AROS** (`make TARGET=aros test`, `source/tests/aros/`): the AROS program in hosted AROS
-  (`AROS_HOSTED` in the environment = the unpacked `AROS-202609-linux-x86_64-system`; X via
-  `xwfb-run`; runs in a temporary directory, about 170 MB each, removed afterwards) against the
+* **AROS** (`make TARGET=aros test`, `source/tests/aros/check_aros.py` on lrvne's rigs,
+  `lrvne/rigs/README.md`): the AROS program in hosted AROS (`AROS_DIR` or `AROS_HOSTED` = the
+  unpacked `AROS-202609-linux-x86_64-system`, in the environment or `tests/rig.conf`; X via
+  `xwfb-run`; runs in `../build/rig-runs/`, the system tree, about 170 MB, removed after each) against the
   host build given the same input: the presentation test (25 snapshots), and the game under
   scripted input for 30 000 frames in each language (random Return/cursor/Esc presses, Shift
   held to skip text; the English run reads the pack from its file, `PRELOAD=no`). Every
@@ -76,9 +77,13 @@ arrays that never meet a byte buffer. The pack, the fonts and the profile are lr
   the same, and must match `adv98x` itself (frame hashes, the WAV it recorded, the records).
   30 000 frames per language, about 20 s. Tried 2026-11-15: all OK; with `vm_rd16` changed to
   read the host's byte order the 68040 diverges at the first snapshot.
-* **68k and WarpOS**: built and linked, not run by this repository's tests (no emulator setup
-  here). 2026-11-16 the 68k program ran in WinUAE on another engine's rig: 2100 frames under
-  `rand:11`, 2748 of 65 536 bytes of stack, the snapshots at 500, 1000 and 2000 equal to the
+* **68k and WarpOS** (`make TARGET=amiga test`, `make TARGET=warpos test`): the presentation
+  test of the 68k program in WinUAE (native, rtg, promote and uaegfx screens, in parallel, in
+  warp) and of the WarpOS program in the Blizzard PPC emulation, against the host build
+  (lrvne's `lrvne-present`; WinUAE, the Kickstart, a Workbench tree and WarpUP in the
+  environment or `tests/rig.conf`). `make TARGET=amiga|aros lrvne-dist-check` unpacks and runs
+  the release archive. 2026-11-16 the 68k program also ran 2100 frames under `rand:11` in
+  WinUAE: 2748 of 65 536 bytes of stack, the snapshots at 500, 1000 and 2000 equal to the
   headless build's. lrvne's `make opn68k` checks the 68k assembly FM loop against the C loop
   under qemu-m68k.
 

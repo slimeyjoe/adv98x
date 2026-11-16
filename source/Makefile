@@ -96,13 +96,20 @@ be68k: $(EXE)
 	$(Q)tests/be68k/be68k.sh $(EXE) $(PAK) $(BUILD)/be68k; rc=$$?; [ $$rc -eq 77 ] || exit $$rc
 
 else ifeq ($(TARGET),aros)
-# The AROS program in hosted AROS (AROS_HOSTED in the environment; tests/aros/check_aros.py):
+# The AROS program in hosted AROS (tests/aros/check_aros.py on lrvne's rigs; AROS_DIR or
+# AROS_HOSTED in the environment or tests/rig.conf):
 # the presentation test and scripted runs of the game, every snapshot's frame hash and the
 # picture read back against the host build given the same input, which this builds first.
 test: $(EXE)
 	$(Q)$(MAKE) --no-print-directory TARGET=host
 	$(Q)python3 -I tests/aros/check_aros.py --aros-bin $(EXE) --host-bin $(BUILDROOT)/host/$(APP_NAME)$(EXESUF) \
 	    --pak $(PAK) $(CHECK_AROS)
+else ifneq ($(filter amiga warpos,$(TARGET)),)
+# The 68k or WarpOS program in WinUAE (lrvne's rigs: the presentation test against the host
+# build; the emulator's settings in the environment or tests/rig.conf, lrvne/rigs/README.md)
+test: lrvne-present
+e2e:
+	@echo "$@: the $(TARGET) program has no end-to-end rig (make TARGET=$(TARGET) test runs the presentation test)"; exit 1
 else
 test e2e:
 	@echo "$@: the $(TARGET) program has no test rig here (make TARGET=aros test runs the AROS one)"; exit 1
