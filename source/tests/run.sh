@@ -84,6 +84,20 @@ bad=sum(1 for x,y in zip(a,b) if y!=int(x*g/256))
 print("render --volume 30: %d samples, %d not scaled by %d/256" % (len(b), bad, g)); sys.exit(0 if len(a)==len(b) and not bad else 1)' "$BIN/nv01.wav" "$BIN/nv01-30.wav" || rc=1
     run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" ja
     run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" en
+    # the engine's own shutdown: the tick limit ends the run through it (as on the machines) and
+    # the headless backend fails a run that leaves memory behind
+    # (lrvne/docs/porting-an-engine.md); the schedule is the AROS check's, which reaches
+    # ACTE1's blocks
+    echo "== adv98x to --max-ticks: the engine frees everything it allocated"
+    mkdir -p "$BIN/teardown"
+    t=0
+    "$BUILD/adv98x" --pak "$PAK" --no-audio --storage "$BIN/teardown" --max-ticks 30000 \
+        --autoplay 'rand:11 shift:2000-30000' >/dev/null 2>"$BIN/teardown/log" || t=$?
+    if [ $t -eq 3 ]; then
+        echo "teardown: ended at the tick limit, nothing left"
+    else
+        echo "teardown: exit $t, not 3"; cat "$BIN/teardown/log"; rc=1
+    fi
     # the SDL3 backend's presentation, offscreen (when it is built: make TARGET=sdl3)
     SDL3=${SDL3_EXE:-$ROOT/build/sdl3/adv98x}
     if [ -x "$SDL3" ]; then
