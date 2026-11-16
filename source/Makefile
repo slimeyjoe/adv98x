@@ -48,6 +48,10 @@ LRVNE_DIST_README_PARTS := $(BUILDROOT)/$(TARGET)/ReadMe-title.txt \
     $(addprefix $(AMIGA_DIST)/,about.txt requirements-$(TARGET).txt playing.txt \
     options-$(if $(filter aros,$(TARGET)),aros,os3).txt saves.txt)
 LRVNE_DIST_FILES := ../LICENSE
+# the 68k program's least stack (lrvne swaps in one this large when a shell or an icon gave
+# less, 4 KB by default): the interpreter recurses for the script's blocks as the original did
+# on the PC-98's stack; every story played through in 20 KB on x86-64, so 64 KB leaves room
+LRVNE_AMIGA_STACK := 65536
 endif
 
 .DEFAULT_GOAL := all

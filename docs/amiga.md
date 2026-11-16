@@ -22,9 +22,9 @@ adv98x` answers.
 
 **Stack.** The interpreter recurses for the script's blocks, as the original did on the PC-98's
 stack. Every story played through in 20 KB of stack on x86-64 (`ulimit -s`, host build);
-hosted AROS reports 7.6 KB used after 30 000 frames of play. The 68k program defines vbcc's
-`__stack` (64 KB), so its startup swaps in a larger stack when the shell's or the icon's is
-smaller (both default to 4 KB). The WarpOS startup has no such variable: give that program
+hosted AROS reports 7.6 KB used after 30 000 frames of play. The 68k program runs on at least
+64 KB: lrvne's backend has vbcc's startup swap in a stack that large when the shell's or the
+icon's is smaller (both default to 4 KB), the size from the Makefile (`LRVNE_AMIGA_STACK`). The WarpOS startup has no such variable: give that program
 64 KB (`Stack 65536`, or the icon's stack size). AROS swaps in 256 KB itself (lrvne).
 
 `make TARGET=amiga|warpos|aros dist` makes `build/<target>/adv98x-<version>-<target>.lha`
@@ -41,7 +41,7 @@ vbcc (68k and PPC) and the AROS gcc took the engine as it was: no C99 feature it
 missing there, nothing assumes a POSIX host (files are the pack and the HAL's storage), and
 64-bit arithmetic is only the music driver's clock (additions, comparisons and one
 multiplication, which vbcc's library does). Changed for these targets: the `$VER:` string,
-vbcc's `__stack`, and the half-width string buffer of `vm_run` made static (512 bytes less in
+the stack size (`LRVNE_AMIGA_STACK`), and the half-width string buffer of `vm_run` made static (512 bytes less in
 every level of the interpreter's recursion).
 
 **Byte order.** Every multi-byte value the engine reads or writes is assembled from bytes in
