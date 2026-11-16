@@ -15,9 +15,11 @@ struct ax_module {
     void (*load)(void);                     /* load-mem of the file: in-image state reset */
     /* the call; returns (AX << 16) | CX as the interpreter reads them (CH < 0: no result) */
     unsigned long (*exec)(const uint16_t *args, int nargs);
+    void (*shutdown)(void);                 /* the end of the run: frees what the module holds */
 };
 
 void mod_init(const char *enabled);         /* the profile's list of module names */
+void mod_shutdown(void);                    /* the end of the run (ax_run) */
 /* load-mem of `file` at `addr`: 1 when a module took it (nothing is read into memory) */
 int  mod_load(const char *file, unsigned addr);
 /* exec-mem at `addr` with the block at 0xDA73; returns (AX << 16) | CX, or -1 when no module

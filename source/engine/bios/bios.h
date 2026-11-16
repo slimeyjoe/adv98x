@@ -45,6 +45,7 @@ struct ax_bios {
 };
 
 void bios_init(void);
+void bios_shutdown(void);                   /* frees what the services keep (ax_run, at the end) */
 /* an lrv_hook_fn of LRV_HOOK_TICK: a frame passed, which is 50 / 56.42 of AdvBIOS's 20 ms
  * ticks (ax.tick) */
 void bios_frame_tick(void *unused);
@@ -133,6 +134,7 @@ uint8_t *bg_picture_buffer(uint32_t *cap);          /* AH=00h: the GPC load buff
 void bg_anim_mode(int on);                          /* AX=0AFFh / 0A00h around the waits */
 void bg_anim_poll(void);                            /* the 2-tick animation step (§5.4) */
 void bg_init(void);                                 /* the default palette at full brightness */
+void bg_shutdown(void);                             /* frees the GPC load buffer */
 void bg_load_palette(const uint16_t pal[16]);       /* into the palette buffer only */
 void bg_program_colour(int i, int level);           /* one colour from the buffer at `level` */
 void bg_program(int level);                         /* AH=11h without its VSYNC wait: store the

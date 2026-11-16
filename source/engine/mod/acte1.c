@@ -342,4 +342,4 @@ static unsigned long acte1_exec(const uint16_t *args, int nargs)
     }
 }
 
-const struct ax_module mod_acte1 = { "ACTE1", acte1_load, acte1_exec };
+const struct ax_module mod_acte1 = { "ACTE1", acte1_load, acte1_exec, drop_slots };

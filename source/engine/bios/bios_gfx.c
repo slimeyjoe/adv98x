@@ -75,6 +75,12 @@ uint8_t *bg_picture_buffer(uint32_t *cap)
     return ax.bios.picbuf;
 }
 
+void bg_shutdown(void)
+{
+    lrv_free(ax.hal, ax.bios.picbuf, 0xF800);
+    ax.bios.picbuf = 0;
+}
+
 /* the animation cells (§5.4), not implemented yet: the mode switch and the 2-tick step arrive with
  * M5 together with the cell services */
 void bg_anim_mode(int on)

@@ -198,4 +198,4 @@ static unsigned long inputnam_exec(const uint16_t *a, int n)
     return 0xFF00;
 }
 
-const struct ax_module mod_inputnam = { "INPUTNAM", 0, inputnam_exec };
+const struct ax_module mod_inputnam = { "INPUTNAM", 0, inputnam_exec, 0 };

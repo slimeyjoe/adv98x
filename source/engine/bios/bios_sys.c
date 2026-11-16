@@ -25,6 +25,11 @@ void bios_init(void)
     mouse_init();
 }
 
+void bios_shutdown(void)
+{
+    bg_shutdown();
+}
+
 /* AdvBIOS's timer interrupt counts 20 ms ticks (DS:00F8); the engine's clock is the frame */
 void bios_frame_tick(void *unused)
 {

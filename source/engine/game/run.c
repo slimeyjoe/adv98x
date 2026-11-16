@@ -281,6 +281,9 @@ int ax_run(void *ctx, const struct lrv_hal *hal, const struct lrv_run_cfg *cfg)
     snd_close();
     hal->video_close();
     cursor_shutdown();
+    mod_shutdown();
+    bios_shutdown();
+    vm_shutdown();
     lrv_font_free(&ax.font8);
     lrv_font_free(&ax.font16);
     lrv_screen_free(&ax.screen);

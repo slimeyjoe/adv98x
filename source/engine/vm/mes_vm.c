@@ -1353,6 +1353,12 @@ void vm_init(void)
     text_len = 0;
 }
 
+void vm_shutdown(void)
+{
+    lrv_free(ax.hal, ax.mem, 0x10000 + 16);
+    ax.mem = 0;
+}
+
 void vm_set_messages(const uint8_t *frags, uint32_t size)
 {
     /* three fragments ending in FF FF; at their original addresses when they fit there (the

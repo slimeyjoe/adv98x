@@ -9,4 +9,4 @@ static unsigned long chgfonth_exec(const uint16_t *args, int nargs)
     return 0xFF00;
 }
 
-const struct ax_module mod_chgfonth = { "CHGFONTH", 0, chgfonth_exec };
+const struct ax_module mod_chgfonth = { "CHGFONTH", 0, chgfonth_exec, 0 };

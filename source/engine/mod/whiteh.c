@@ -58,4 +58,4 @@ static unsigned long whiteh_exec(const uint16_t *a, int n)
     return 0xFF00;
 }
 
-const struct ax_module mod_whiteh = { "WHITEH", 0, whiteh_exec };
+const struct ax_module mod_whiteh = { "WHITEH", 0, whiteh_exec, 0 };

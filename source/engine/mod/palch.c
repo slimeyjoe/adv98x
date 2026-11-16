@@ -40,4 +40,4 @@ static unsigned long palch_exec(const uint16_t *a, int n)
     return 0xFF00;
 }
 
-const struct ax_module mod_palch = { "PALCH", 0, palch_exec };
+const struct ax_module mod_palch = { "PALCH", 0, palch_exec, 0 };

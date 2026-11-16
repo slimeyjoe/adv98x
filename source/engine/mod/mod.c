@@ -26,6 +26,15 @@ void mod_init(const char *list)
         enabled[i] = lrv_list_has(list, all[i]->name);
 }
 
+void mod_shutdown(void)
+{
+    int i;
+    for (i = 0; i < NALL; i++)
+        if (all[i]->shutdown)
+            all[i]->shutdown();
+    nbound = 0;
+}
+
 int mod_load(const char *file, unsigned addr)
 {
     char base[32];

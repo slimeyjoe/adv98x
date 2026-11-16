@@ -64,6 +64,8 @@
 #define MES_SAVEBUF      0xDB20          /* 256 bytes */
 
 void vm_init(void);
+/* frees the interpreter's memory vm_init allocated (ax_run, at the end) */
+void vm_shutdown(void);
 /* Run the game from the start script (the profile's, named as the original's start file names
  * it) until it ends: an end marker in the main script, `exit`, or the player quitting. */
 void vm_run_game(const char *start);
