@@ -19,6 +19,10 @@ a play run the records the game wrote (the player's name, saves) must be the hos
 byte. The host build is the reference only for what is the same C on both: the engine and
 lrvne; it is itself checked against the original (tests/run.sh).
 
+Nothing waits for a number of seconds: a run ends when its commands are done (aros.sh waits for
+their marker); AROS_TIMEOUT (default 900 s) is each run's backstop, for a run that is stuck, and
+a run that did not finish fails that check saying how (aros.sh's exit status).
+
 Needs AROS_HOSTED in the environment (aros.sh). Stdlib only.
 """
 import argparse
@@ -33,6 +37,9 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ARGS_SH = os.path.join(HERE, 'aros.sh')
 W, H = 640, 400
+TIMEOUT = int(os.environ.get('AROS_TIMEOUT', '900'))
+OUTCOMES = {3: 'AROS ended before the commands were done', 4: 'the X server could not start',
+            124: 'timeout (the backstop, AROS_TIMEOUT=%d s): the run did not end' % TIMEOUT}
 PLAY_TICKS = 30000
 # random presses of return, up, down and esc every 20 ticks (menus, waits, the name entry),
 # Shift held to skip text after the opening; a snapshot every 500 ticks
@@ -122,32 +129,36 @@ def compare(ref, recs, snapdir, label):
     return problems
 
 
-def run_aros(args, name, files, commands, timeout):
+def run_aros(args, name, files, commands):
+    """runs the commands in hosted AROS: the run dir, aros.sh's log, the program's output and
+    the run's problem (None when it finished)"""
     rundir = os.path.join(args.runs, name)
     env = dict(os.environ, AROS_FILES=' '.join(files))
-    log = subprocess.run([ARGS_SH, rundir, str(timeout)], input='\n'.join(commands) + '\n',
+    log = subprocess.run([ARGS_SH, rundir, str(TIMEOUT)], input='\n'.join(commands) + '\n',
                          text=True, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     out = os.path.join(rundir, 'AROS', 'out.txt')
     text = open(out, errors='replace').read() if os.path.exists(out) else ''
-    return rundir, log.stdout.strip(), text
+    problem = None
+    if log.returncode:
+        problem = '%s: hosted AROS: %s' % (name, OUTCOMES.get(log.returncode, 'aros.sh exit %d: %s' % (
+            log.returncode, log.stdout.strip()[-300:])))
+    return rundir, log.stdout.strip(), text, problem
 
 
 def report_run(label, log, out):
     for line in out.splitlines():
         if line.startswith(('stack:', 'memory:', 'exit ', 'timer:', 'max ticks')):
             print('    %s: %s' % (label, line))
-    if 'done at' not in log:
-        print('    %s: %s' % (label, log.replace('\n', '; ')))
 
 
 def cmd_present(args):
     frames, _ = host_frames([args.host_bin, '--pak', args.pak, '--present-test'])
     ref = {'%02d-%s' % (d['t'], name): d for name, d in frames.items()}
-    rundir, log, out = run_aros(args, 'present', [args.aros_bin, args.pak],
-                                ['!MakeDir Work:snaps', 'Work:adv98x PRESENTTEST SNAPDIR=Work:snaps/'],
-                                120)
+    rundir, log, out, problem = run_aros(args, 'present', [args.aros_bin, args.pak],
+                                         ['!MakeDir Work:snaps',
+                                          'Work:adv98x PRESENTTEST SNAPDIR=Work:snaps/'])
     snapdir = os.path.join(rundir, 'AROS', 'Work', 'snaps')
-    problems = compare(ref, aros_snaps(snapdir), snapdir, 'present')
+    problems = ([problem] if problem else []) + compare(ref, aros_snaps(snapdir), snapdir, 'present')
     report_run('present', log, out)
     return len(ref), problems, rundir
 
@@ -165,11 +176,11 @@ def cmd_play(args, lang, preload):
                               '--max-ticks', str(PLAY_TICKS)])
         cmd = ('Work:adv98x LANG=%s AUDIO=none FAST AUTOPLAY=@Work:play.spec MAXTICKS=%d '
                'SNAPDIR=Work:snaps/ PRELOAD=%s' % (lang, PLAY_TICKS, preload))
-        rundir, log, out = run_aros(args, 'play-' + lang, [args.aros_bin, args.pak, spec],
-                                    ['!MakeDir Work:snaps', cmd], 300)
+        rundir, log, out, problem = run_aros(args, 'play-' + lang, [args.aros_bin, args.pak, spec],
+                                             ['!MakeDir Work:snaps', cmd])
         snapdir = os.path.join(rundir, 'AROS', 'Work', 'snaps')
         label = 'play %s' % lang
-        problems = compare(ref, aros_snaps(snapdir), snapdir, label)
+        problems = ([problem] if problem else []) + compare(ref, aros_snaps(snapdir), snapdir, label)
         saves = os.path.join(rundir, 'AROS', 'Work', 'saves', 'nova')
         got = sorted(os.listdir(saves)) if os.path.isdir(saves) else []
         want = sorted(os.listdir(storage))

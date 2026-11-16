@@ -64,7 +64,10 @@ arrays that never meet a byte buffer. The pack, the fonts and the profile are lr
   snapshot's frame hash and the picture the program read back from its screen must be the host
   frame's, and the records the game wrote the host's, byte for byte. Tried 2026-11-15: all
   OK (25 + 60 + 60 snapshots, `NAME.DEF`). A run with sound through AHI (hosted AHI into a
-  private PipeWire sink, recorded by `aros.sh`) played the music.
+  private PipeWire sink, recorded by `aros.sh`) played the music. Nothing waits for a number
+  of seconds: a run ends when its commands are done (a marker `aros.sh` waits for),
+  `AROS_TIMEOUT` (900 s) is each run's backstop, and a run that did not finish fails saying
+  how (`aros.sh`'s exit status: 3 AROS ended first, 4 no X server, 124 the backstop).
 * **Big-endian** (`make TARGET=host be68k`, `source/tests/be68k/`): the whole engine and lrvne's
   library, built for m68k Linux with `m68k-linux-gnu-gcc` (freestanding: `rt.c` is its C
   library) and run under `qemu-m68k -cpu m68040`, on a HAL of its own that mirrors the headless
@@ -73,8 +76,11 @@ arrays that never meet a byte buffer. The pack, the fonts and the profile are lr
   the same, and must match `adv98x` itself (frame hashes, the WAV it recorded, the records).
   30 000 frames per language, about 20 s. Tried 2026-11-15: all OK; with `vm_rd16` changed to
   read the host's byte order the 68040 diverges at the first snapshot.
-* **68k and WarpOS**: built and linked, not run here (no emulator setup in this repository).
-  lrvne's `make opn68k` checks the 68k assembly FM loop against the C loop under qemu-m68k.
+* **68k and WarpOS**: built and linked, not run by this repository's tests (no emulator setup
+  here). 2026-11-16 the 68k program ran in WinUAE on another engine's rig: 2100 frames under
+  `rand:11`, 2748 of 65 536 bytes of stack, the snapshots at 500, 1000 and 2000 equal to the
+  headless build's. lrvne's `make opn68k` checks the 68k assembly FM loop against the C loop
+  under qemu-m68k.
 
 Seen while making the big-endian test: GCC 16.2 for m68k inlined a byte-copy loop as `move.b
 (a1)+,(0,a1,d0.l)`, with `d0` worked out as if `a1` were not yet incremented when the
