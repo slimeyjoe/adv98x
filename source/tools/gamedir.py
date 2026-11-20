@@ -92,6 +92,13 @@ def inventory(game=None):
     return resources(game, 'inventory.tsv')
 
 
+def part_dir(name, game=None):
+    """The directory in resources/original that a part of the description is in, by dotted
+    name: part_dir('PACK.songs') is where the songs are."""
+    part = get(name, game)
+    return original(game, part['release'], part.get('prefix', '').rstrip('/'))
+
+
 def build(game=None, *parts):
     """The game's build directory: the pack, its fonts, the engine's objects."""
     return os.path.join(game or require(), 'build', *parts)

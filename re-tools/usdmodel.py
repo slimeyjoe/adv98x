@@ -40,7 +40,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'source', 'tools'))
 import gamedir  # noqa: E402
-MUSDIR = gamedir.original(None, 'pc98', 'A', 'MUS')
+MUSDIR = gamedir.part_dir('PACK.songs')
 
 CLOCK = 3993600
 

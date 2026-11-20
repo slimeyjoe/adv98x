@@ -29,7 +29,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'source', 'tools'))
 import gamedir  # noqa: E402
-MUSDIR = gamedir.original(None, 'pc98', 'A', 'MUS')
+MUSDIR = gamedir.part_dir('PACK.songs')
 
 OPN_CLOCK = 3993600
 LEN_TABLE = [192, 144, 96, 72, 48, 36, 24, 18, 12, 9, 6]      # 0328:07C0, ticks; 192 = whole note

@@ -108,12 +108,7 @@ def read_checked(inv, original, release, path):
     return data
 
 
-def rows_of(inv, part):
-    """The paths of a PACK part's rows: release, kind, prefix, suffix."""
-    prefix, suffix = part.get('prefix', ''), part.get('suffix', '').upper()
-    return sorted(p for (r, p), row in inv.items()
-                  if r == part['release'] and row.get('kind') == part['kind']
-                  and p.startswith(prefix) and p.upper().endswith(suffix))
+rows_of = gamedata.rows_of
 
 
 def name(path):

@@ -71,7 +71,7 @@ _FLOW = ('call', 'jmp', 'loop', 'jcxz')
 def cmd_list(a):
     import dis16
     allnames = load_tcm_names(a.names)
-    a.dir = a.dir or gamedir.original(None, 'pc98', 'A')
+    a.dir = a.dir or gamedir.part_dir('ORIGINAL.plugins')
     a.out = a.out or gamedir.derived(None, 'listing')
     os.makedirs(a.out, exist_ok=True)
     for fname, names in sorted(allnames.items()):
