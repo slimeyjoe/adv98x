@@ -36,6 +36,8 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.path.join(ROOT, 're-tools'))
+sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+import gamedir  # noqa: E402
 import usdmodel  # noqa: E402
 import usoinfo  # noqa: E402
 
@@ -334,8 +336,8 @@ def check_recordings(ck, files, recdir):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
     ap.add_argument('exe', help='test_usd')
-    ap.add_argument('original', nargs='?', default=os.path.join(ROOT, 'resources', 'original'))
-    ap.add_argument('--recordings', default=os.path.join(ROOT, 'resources', 'derived', 'music', 'vgm'))
+    ap.add_argument('original', nargs='?', default=gamedir.original())
+    ap.add_argument('--recordings', default=gamedir.derived(None, 'music', 'vgm'))
     ap.add_argument('--songs', help='comma-separated song names (default: all)')
     ap.add_argument('--only', help='comma-separated scenarios: ' + ','.join(SCENARIOS))
     ap.add_argument('--loops', type=int, default=3)

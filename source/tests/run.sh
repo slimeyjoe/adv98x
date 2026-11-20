@@ -1,8 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Run the conformance tests. $1 = the build directory (../build/host), holding tests/ and the
-# engine. The tests that need the imported game (make data) or the pack (make pack) are skipped
-# with a note when those are missing.
+# Run the conformance tests. $1 = the build directory (build/host), holding tests/ and the
+# engine. GAME_DIR names the game (tools/gamedir.py); the tests that need it, its imported data
+# (make data) or its pack (make pack, PAK) are skipped with a note when those are missing.
 # $2 = e2e: instead, play every story and ending through the engine and the original
 # interpreter and compare (check_vm.py's routes; long).
 set -u
@@ -10,15 +10,17 @@ BUILD=${1:-../build/host}
 MODE=${2:-}
 BIN=$BUILD/tests
 HERE=$(cd "$(dirname "$0")" && pwd)
-ROOT=$(cd "$HERE/../.." && pwd)
-PAK=${PAK:-$ROOT/build/adv98x.pak}
+BUILDROOT=$(cd "$BUILD/.." && pwd)
+GAME=${GAME_DIR:-}
+PAK=${PAK:-$BUILDROOT/adv98x.pak}
 PY=${PYTHON:-python3}
 # the emulation references (AdvBIOS's own code under unicorn) need a Python with unicorn:
 # EMU_PYTHON names it (docs/re/README.md "Tools"); without it $PY is tried
 EMU_PY=${EMU_PYTHON:-$(command -v "$PY")}
-ORIGINAL=$ROOT/resources/original
-OV1=$ROOT/resources/derived/exe/NV.OV1
-FONTS=$ROOT/build/fonts
+ORIGINAL=$GAME/resources/original
+DERIVED=$GAME/resources/derived
+OV1=$DERIVED/exe/NV.OV1
+FONTS=$BUILDROOT/fonts
 rc=0
 
 run() {
@@ -28,7 +30,7 @@ run() {
 
 if [ "$MODE" = e2e ]; then
     if [ -x "$EMU_PY" ] && "$EMU_PY" -c 'import unicorn' 2>/dev/null && [ -f "$PAK" ] &&
-       [ -f "$ROOT/resources/derived/exe/NV.OVL" ]; then
+       [ -f "$DERIVED/exe/NV.OVL" ]; then
         run "$EMU_PY" -I "$HERE/check_vm.py" "$BIN/test_vm" "$PAK" "$ORIGINAL" "$FONTS" \
             route1 route2a route2b route2c route3 route1_en route2a_en route2b_en route2c_en route3_en
     else
@@ -44,7 +46,10 @@ skip() {
 }
 
 # ---- with the imported game ----------------------------------------------------------------
-if $PY -I "$HERE/../tools/gamedata.py" check >/dev/null 2>&1; then
+if [ -z "$GAME" ]; then
+    HAVE_GAME=
+    echo "note: no game (GAME_DIR): the tests that need one are skipped"
+elif $PY -I "$HERE/../tools/gamedata.py" check >/dev/null 2>&1; then
     HAVE_GAME=1
 else
     HAVE_GAME=
@@ -99,7 +104,7 @@ print("render --volume 30: %d samples, %d not scaled by %d/256" % (len(b), bad, 
         echo "teardown: exit $t, not 3"; cat "$BIN/teardown/log"; rc=1
     fi
     # the SDL3 backend's presentation, offscreen (when it is built: make TARGET=sdl3)
-    SDL3=${SDL3_EXE:-$ROOT/build/sdl3/adv98x}
+    SDL3=${SDL3_EXE:-$BUILDROOT/sdl3/adv98x}
     if [ -x "$SDL3" ]; then
         run $PY -I "$HERE/e2e/present.py" "$SDL3" "$PAK"
     else
@@ -110,20 +115,24 @@ else
 fi
 
 # ---- against AdvBIOS's own code under emulation --------------------------------------------
-if [ -x "$EMU_PY" ] && "$EMU_PY" -c 'import unicorn' 2>/dev/null && [ -f "$OV1" ]; then
+if [ -n "$GAME" ] && [ -x "$EMU_PY" ] && "$EMU_PY" -c 'import unicorn' 2>/dev/null && [ -f "$OV1" ]; then
     if [ -f "$PAK" ] && [ -f "$FONTS/k16.xfnt" ]; then
         run "$EMU_PY" -I "$HERE/check_text.py" "$BIN/test_text" "$PAK" "$FONTS"
     else
         skip check_text "needs $PAK and its fonts (make pack)"
     fi
     run "$EMU_PY" -I "$HERE/check_palette.py" "$BIN/test_palette"
-    if [ -f "$PAK" ] && [ -f "$FONTS/k16.xfnt" ] && [ -f "$ROOT/resources/derived/exe/NV.OVL" ]; then
+    if [ -f "$PAK" ] && [ -f "$FONTS/k16.xfnt" ] && [ -f "$DERIVED/exe/NV.OVL" ]; then
         run "$EMU_PY" -I "$HERE/check_vm.py" "$BIN/test_vm" "$PAK" "$ORIGINAL" "$FONTS"
     else
         skip check_vm "needs $PAK, its fonts and the unpacked NV.OVL (make data, make pack)"
     fi
 else
-    skip "check_text, check_palette, check_vm" "need a Python with unicorn (EMU_PYTHON) and $OV1 (make data)"
+    if [ -z "$GAME" ]; then
+        skip "check_text, check_palette, check_vm" "need a game"
+    else
+        skip "check_text, check_palette, check_vm" "need a Python with unicorn (EMU_PYTHON) and $OV1 (make data)"
+    fi
 fi
 
 if [ $rc -eq 0 ]; then echo "ALL TESTS PASSED"; else echo "TESTS FAILED"; fi

@@ -46,6 +46,7 @@ sys.path.insert(1, os.path.join(ROOT, 're-tools'))
 sys.path.insert(2, os.path.join(HERE, '..', 'lrvne', 'tools'))
 import exeunpack  # noqa: E402
 import gamedata  # noqa: E402
+import gamedir  # noqa: E402
 from lrvne import profile, xpak  # noqa: E402
 
 # the engine's entry types (engine/ax.h)
@@ -137,7 +138,7 @@ def name(path):
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split('\n')[0])
-    ap.add_argument('--original', default=os.path.join(ROOT, 'resources', 'original'))
+    ap.add_argument('--original')
     ap.add_argument('--fonts', required=True,
                     help='directory with k16.xfnt and ank8.xfnt (lrvne xfont --no-bold)')
     ap.add_argument('--game', choices=sorted(PROFILES),
@@ -145,6 +146,7 @@ def main():
                     required=len(PROFILES) > 1)
     ap.add_argument('-o', '--output', required=True)
     a = ap.parse_args()
+    a.original = a.original or gamedir.original()
     prof = PROFILES[a.game]
 
     inv = {(r.get('release'), r.name): r for r in gamedata.load_inventory()}

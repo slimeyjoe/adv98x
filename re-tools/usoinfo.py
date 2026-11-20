@@ -27,8 +27,9 @@ import struct
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-MUSDIR = os.path.join(ROOT, 'resources', 'original', 'pc98', 'A', 'MUS')
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'source', 'tools'))
+import gamedir  # noqa: E402
+MUSDIR = gamedir.original(None, 'pc98', 'A', 'MUS')
 
 OPN_CLOCK = 3993600
 LEN_TABLE = [192, 144, 96, 72, 48, 36, 24, 18, 12, 9, 6]      # 0328:07C0, ticks; 192 = whole note

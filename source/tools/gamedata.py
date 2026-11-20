@@ -52,11 +52,12 @@ import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
-ORIG = os.path.join(ROOT, 'resources', 'original')
-INVENTORY = os.path.join(ROOT, 'resources', 'inventory.tsv')
-sys.path.insert(0, os.path.join(HERE, '..', 'lrvne', 'tools'))
+sys.path.insert(0, HERE)
+sys.path.insert(1, os.path.join(HERE, '..', 'lrvne', 'tools'))
+import gamedir                # noqa: E402
 from lrvne import inventory   # noqa: E402
+
+ENGINE = gamedir.ENGINE
 
 FLOPPY_LABEL = 'NOVA____98'     # volume labels NOVA____98A .. D
 
@@ -64,7 +65,7 @@ FLOPPY_LABEL = 'NOVA____98'     # volume labels NOVA____98A .. D
 def load_inventory():
     """The rows of resources/inventory.tsv (lrvne.inventory.Row: name = the path inside the
     release, get('release'), get('kind'))."""
-    return inventory.Inventory.load(INVENTORY).rows
+    return inventory.Inventory.load(gamedir.inventory()).rows
 
 
 # ---- the Windows release's archive ("PCK Version 1.00") ----------------------------------------
@@ -136,8 +137,10 @@ DERIVE_PARTS = ('exe', 'scripts', 'images', 'listing', 'vgm')
 
 
 def cmd_derive(a):
-    retools = os.path.join(ROOT, 're-tools')
-    der = os.path.join(ROOT, 'resources', 'derived')
+    game = gamedir.require('gamedata')
+    retools = os.path.join(ENGINE, 're-tools')
+    der = gamedir.derived(game)
+    a.out = a.out or gamedir.original(game)
     disk_a = os.path.join(a.out, 'pc98', 'A')
     if not os.path.isdir(disk_a):
         sys.exit('gamedata: %s is missing: import the game first' % disk_a)
@@ -145,7 +148,7 @@ def cmd_derive(a):
 
     def run(interp, *args):
         cmd = [interp] + (['-I'] if interp == sys.executable else []) + list(args)
-        r = subprocess.run(cmd, cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        r = subprocess.run(cmd, cwd=game, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         tail = r.stdout.strip().splitlines()[-1:] or ['']
         print('  %s %s' % ('ok  ' if r.returncode == 0 else 'FAIL', tail[0][:110]))
         return r.returncode == 0
@@ -178,7 +181,7 @@ def cmd_derive(a):
                 continue
             ok &= run(py, os.path.join(retools, 'tcmtool.py'), 'list')
             # NV.OV1 (AdvBIOS) and NV.OVL (the interpreter), named from docs/re/listing/
-            names = os.path.join(ROOT, 'docs', 're', 'listing')
+            names = os.path.join(ENGINE, 'docs', 're', 'listing')
             lst = os.path.join(der, 'listing')
             os.makedirs(lst, exist_ok=True)
             ok &= run(py, os.path.join(retools, 'dis16.py'), os.path.join(der, 'exe', 'NV.OV1'),
@@ -210,11 +213,12 @@ def cmd_derive(a):
 def add_derive_arguments(p):
     p.add_argument('parts', nargs='*')
     p.add_argument('--python')
-    p.add_argument('--out', default=ORIG)
+    p.add_argument('--out', default=None)
 
 
 def main():
-    return inventory.run_cli(None, INVENTORY, ORIG, hooks=HOOKS, prog='gamedata',
+    game = gamedir.require('gamedata')
+    return inventory.run_cli(None, gamedir.inventory(game), gamedir.original(game), hooks=HOOKS, prog='gamedata',
                              description=__doc__.split('\n')[0],
                              commands={'derive': (add_derive_arguments, cmd_derive)})
 

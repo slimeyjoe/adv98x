@@ -44,8 +44,10 @@ import sys
 import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
+ROOT = os.path.dirname(HERE)                # the engine's
 sys.path.insert(0, HERE)
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'source', 'tools'))
+import gamedir  # noqa: E402
 
 
 # ---------------------------------------------------------------- listings
@@ -69,6 +71,8 @@ _FLOW = ('call', 'jmp', 'loop', 'jcxz')
 def cmd_list(a):
     import dis16
     allnames = load_tcm_names(a.names)
+    a.dir = a.dir or gamedir.original(None, 'pc98', 'A')
+    a.out = a.out or gamedir.derived(None, 'listing')
     os.makedirs(a.out, exist_ok=True)
     for fname, names in sorted(allnames.items()):
         src = os.path.join(a.dir, fname + '.TCM')
@@ -497,10 +501,8 @@ def main():
     p = sub.add_parser('list')
     p.add_argument('--names', default=os.path.join(
         ROOT, 'docs', 're', 'listing', 'tcm-names.tsv'))
-    p.add_argument('--dir', default=os.path.join(
-        ROOT, 'resources', 'original', 'pc98', 'A'))
-    p.add_argument('--out', default=os.path.join(
-        ROOT, 'resources', 'derived', 'listing'))
+    p.add_argument('--dir', default=None)
+    p.add_argument('--out', default=None)
     p.set_defaults(fn=cmd_list)
     p = sub.add_parser('run')
     p.add_argument('file')

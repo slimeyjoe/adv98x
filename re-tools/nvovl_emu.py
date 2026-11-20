@@ -46,7 +46,7 @@ sys.path.insert(0, HERE)
 import advbios_emu as A  # noqa: E402
 
 X = A.X
-OVL = os.path.join(A.ROOT, 'resources', 'derived', 'exe', 'NV.OVL')
+OVL = A.gamedir.derived(None, 'exe', 'NV.OVL')
 SEG = 0x5000
 STUB = 0xF100           # interrupt stubs for the vectors plug-ins chain to
 SLICE = 20000           # instructions between VSYNC interrupt opportunities (as tcmtool.py)

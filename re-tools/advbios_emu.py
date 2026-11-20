@@ -43,8 +43,9 @@ except ImportError:                      # the caller reports that the reference
     unicorn = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-OV1 = os.path.join(ROOT, 'resources', 'derived', 'exe', 'NV.OV1')
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'source', 'tools'))
+import gamedir  # noqa: E402
+OV1 = gamedir.derived(None, 'exe', 'NV.OV1')
 
 BASE = 0x1000
 DGROUP = 0x3018
@@ -258,7 +259,7 @@ class AdvBiosEmu:
 
 
 def _selftest():
-    emu = AdvBiosEmu(fonts=os.path.join(ROOT, 'build', 'fonts'))
+    emu = AdvBiosEmu(fonts=gamedir.build(None, 'fonts'))
     emu.call(0xF6, ax=0x0900, dx=0x8250)
     print('cursor', emu.ds_word(0x1A0), emu.ds_word(0x1A2),
           'set bytes', sum(sum(1 for b in p if b) for p in emu.planes()))

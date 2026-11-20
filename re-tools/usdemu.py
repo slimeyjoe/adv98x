@@ -84,10 +84,11 @@ except ImportError:             # the VGM writer below is still usable (usdmodel
     Uc = None
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-ROOT = os.path.dirname(HERE)
-OV1 = os.path.join(ROOT, 'resources', 'derived', 'exe', 'NV.OV1')
-MUSDIR = os.path.join(ROOT, 'resources', 'original', 'pc98', 'A', 'MUS')
-VGMDIR = os.path.join(ROOT, 'resources', 'derived', 'music', 'vgm')
+sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'source', 'tools'))
+import gamedir  # noqa: E402
+OV1 = gamedir.derived(None, 'exe', 'NV.OV1')
+MUSDIR = gamedir.original(None, 'pc98', 'A', 'MUS')
+VGMDIR = gamedir.derived(None, 'music', 'vgm')
 
 CLOCK = 3993600
 BASE = 0x1000               # load segment of the image

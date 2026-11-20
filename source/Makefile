@@ -4,17 +4,18 @@
 #   make [TARGET=...] [V=1]        build the engine for a target (default: host = the headless
 #                                  backend, for tests; sdl3 = the player; amiga, warpos, aros =
 #                                  the Amiga family's programs, ../docs/amiga.md)
-#   make data SRC="..."            import the original game from your copies (../docs/game-data.md)
-#                                  into ../resources/original/ and derive ../resources/derived/
+#   make data SRC="..."            import the original game from your copies (the game's
+#                                  docs/game-data.md) into its resources/original/ and derive
+#                                  its resources/derived/
 #   make pack                      build the game pack $(PAK) from the imported game
 #   make TARGET=host test [SAN=1]  build and run the conformance tests
 #   make TARGET=host be68k         the whole engine on a big-endian 68040 under qemu-m68k
 #   make TARGET=aros test          the AROS build in hosted AROS against the host build
-#   make TARGET=sdl3 dist          the player's archive ../build/sdl3/adv98x-<version>-<host>.tar.gz
-#   make TARGET=amiga|warpos|aros dist   the Amiga family's ../build/<target>/adv98x-<version>-<target>.lha
-#   make dist-src                  the source archive ../build/adv98x-<version>-src.tar.gz
-#   make clean                     remove ../build/
-#   make data-clean                remove everything made from the game outside ../build/
+#   make TARGET=sdl3 dist          the player's archive build/sdl3/adv98x-<version>-<host>.tar.gz
+#   make TARGET=amiga|warpos|aros dist   the Amiga family's build/<target>/adv98x-<version>-<target>.lha
+#   make dist-src                  the source archive build/<name>-<version>-src.tar.gz
+#   make clean                     remove the build directory
+#   make data-clean                remove everything made from the game outside build/
 #   make distclean                 clean + data-clean: only the committed files are left
 #
 # The engine (engine/) is the interpreter, AdvBIOS's services, the picture decoder, the music
@@ -25,9 +26,16 @@
 
 LRVNE     := lrvne
 TARGET    ?= host
-# Everything built goes to the top-level build/ (../build from here): build/<TARGET>/ for each
-# target, the pack and its intermediates (fonts) in build/ itself.
-BUILDROOT := ../build
+# The game that data, pack and the tests that need a game work on: a directory holding game.py
+# (tools/gamedir.py), absolute or relative to this one. A game's own Makefile passes it; empty,
+# the engine is built alone and only the tests that need no game run.
+GAME_DIR  ?=
+override GAME_DIR := $(if $(GAME_DIR),$(abspath $(GAME_DIR)))
+export GAME_DIR
+NEED_GAME  = @test -n "$(GAME_DIR)" || { echo "$@: no game: run make in a game's directory, or set GAME_DIR"; exit 1; }
+# Everything built goes to the game's build/ (without a game, the engine's ../build):
+# build/<TARGET>/ for each target, the pack and its intermediates (fonts) in build/ itself.
+BUILDROOT := $(if $(GAME_DIR),$(GAME_DIR)/build,../build)
 BUILD     := $(BUILDROOT)/$(TARGET)
 APP_NAME  := adv98x
 APP_SRCS  := $(sort $(wildcard engine/*.c engine/*/*.c))
@@ -82,17 +90,19 @@ $(BUILD)/tests/%$(EXESUF): $(BUILD)/tests/%.o $(TEST_OBJS)
 	$(Q)$(LRVNE_LD) $(OPT) -o $@ $< $(TEST_OBJS) $(LDLIBS)
 
 test: $(TEST_EXES) $(EXE)
-	$(Q)tests/run.sh $(BUILD)
+	$(Q)PAK=$(PAK) tests/run.sh $(BUILD)
 
 # the whole stories against the original interpreter (tests/check_vm.py ROUTES): every ending,
 # both languages; long (5-12 CPU minutes per route under emulation, run in parallel)
 e2e: $(TEST_EXES) $(EXE)
-	$(Q)tests/run.sh $(BUILD) e2e
+	$(NEED_GAME)
+	$(Q)PAK=$(PAK) tests/run.sh $(BUILD) e2e
 
 # big-endian: the engine and lrvne's library on a HAL of their own, built for m68k Linux and run
 # under qemu-m68k against the same program built natively, which must match the headless
 # backend (tests/be68k/be68k.sh; skipped without the cross compiler or qemu-m68k)
 be68k: $(EXE)
+	$(NEED_GAME)
 	$(Q)tests/be68k/be68k.sh $(EXE) $(PAK) $(BUILD)/be68k; rc=$$?; [ $$rc -eq 77 ] || exit $$rc
 
 else ifeq ($(TARGET),aros)
@@ -116,30 +126,34 @@ test e2e:
 endif
 
 # ---------------------------------------------------------------------------------------------
-# The game's data (../docs/game-data.md), which the repository does not carry.
+# The game's data (the game's docs/game-data.md), which no repository carries.
 #   make data SRC="DIR-or-image ..."  [DATA_PY=python with capstone/unicorn/pillow/numpy]
 # (without SRC: the directories named in the environment variable LRVNE_MEDIA)
-# imports the releases into ../resources/original/ (checked against ../resources/inventory.tsv)
-# and derives ../resources/derived/ (tools/gamedata.py derive; the parts that need a module
-# DATA_PY lacks are skipped with a note).
+# imports the releases into the game's resources/original/ (checked against its
+# resources/inventory.tsv) and derives its resources/derived/ (tools/gamedata.py derive; the
+# parts that need a module DATA_PY lacks are skipped with a note).
 # ---------------------------------------------------------------------------------------------
 DATA_PY  ?=
 LRVNE_PY   := python3 -I
 LRVNE_TOOL := $(LRVNE_PY) $(LRVNE)/tools/lrvne
 .PHONY: data data-derive data-check
 data:
-	$(Q)test -n "$(SRC)$$LRVNE_MEDIA" || { echo "data: set SRC=<your copies of the game> (../docs/game-data.md)"; exit 1; }
+	$(NEED_GAME)
+	$(Q)test -n "$(SRC)$$LRVNE_MEDIA" || { echo "data: set SRC=<your copies of the game> (the game's docs/game-data.md)"; exit 1; }
 	$(Q)$(LRVNE_PY) tools/gamedata.py import $(SRC)
 	$(Q)$(LRVNE_PY) tools/gamedata.py derive $(if $(DATA_PY),--python $(DATA_PY)) $(DATA_PARTS)
 data-derive:
+	$(NEED_GAME)
 	$(Q)$(LRVNE_PY) tools/gamedata.py derive $(if $(DATA_PY),--python $(DATA_PY)) $(DATA_PARTS)
 data-check:
+	$(NEED_GAME)
 	$(Q)$(LRVNE_PY) tools/gamedata.py check
 
-# Everything made from the original game outside ../build/ (the ignored paths of ../.gitignore)
-DATA_GENERATED := ../resources/original ../resources/derived
+# Everything made from the original game outside build/ (the game's git-ignored resources/)
+DATA_GENERATED := $(GAME_DIR)/resources/original $(GAME_DIR)/resources/derived
 .PHONY: data-clean distclean
 data-clean:
+	$(NEED_GAME)
 	rm -rf $(DATA_GENERATED)
 distclean: clean data-clean
 
@@ -150,11 +164,12 @@ distclean: clean data-clean
 # it is, is in its profile (GAME=<id> chooses when mkpack.py knows several).
 # ---------------------------------------------------------------------------------------------
 X11FONTS ?= $(LRVNE)/fonts/x11
-ORIGINAL ?= ../resources/original
+ORIGINAL ?= $(GAME_DIR)/resources/original
 PAK      ?= $(BUILDROOT)/$(APP_NAME).pak
 GAME     ?=
 .PHONY: pack
 pack:
+	$(NEED_GAME)
 	$(Q)mkdir -p $(BUILDROOT)/fonts
 	$(Q)$(LRVNE_TOOL) xfont --no-bold -o $(BUILDROOT)/fonts/ank8.xfnt $(X11FONTS)/8x16rk.bdf >/dev/null
 	$(Q)$(LRVNE_TOOL) xfont --no-bold -o $(BUILDROOT)/fonts/k16.xfnt $(X11FONTS)/jiskan16.bdf >/dev/null
@@ -171,14 +186,17 @@ pack:
 # (LRVNE_DIST_NAME of lrvne/mk/target/<TARGET>.mk). `make TARGET=amiga|warpos|aros dist`:
 # $(BUILD)/adv98x-<version>-<target>.lha (AROS: -aros-x86_64), which unpacks to the drawer
 # Adv98X/{adv98x, ReadMe.txt, LICENSE}, no pack either.
-# `make dist-src`: the committed tree at HEAD with the lrvne submodule's at its HEAD (git archive
-# leaves a submodule out; the repository holds no game data).
+# `make dist-src`: the committed tree at HEAD of the game's repository (without a game, the
+# engine's), with every submodule's at its HEAD, at every level (git archive leaves submodules
+# out; no repository holds game data). SRC_NAME names it; a game's Makefile passes its own.
 # ---------------------------------------------------------------------------------------------
 DIST_README ?= dist/ReadMe.txt
 DIST_STRIP  ?= strip
 DIST        := $(BUILD)/adv98x-$(AX_VERSION)-$(LRVNE_DIST_NAME).tar.gz
 DISTDIR     := $(BUILD)/dist
-SRCDIST     := $(abspath $(BUILDROOT))/adv98x-$(AX_VERSION)-src.tar.gz
+SRC_TOP     := $(if $(GAME_DIR),$(GAME_DIR),$(abspath ..))
+SRC_NAME    ?= adv98x-$(AX_VERSION)
+SRCDIST     := $(abspath $(BUILDROOT))/$(SRC_NAME)-src.tar.gz
 SRCDIST_TMP := $(abspath $(BUILDROOT))/dist-src
 # no local user or group names in the archive (GNU tar / bsdtar spell it differently)
 TAR_ANON    := $(if $(shell tar --version 2>/dev/null | grep GNU),--owner=0 --group=0 --numeric-owner,--uid 0 --gid 0 --uname '' --gname '')
@@ -206,7 +224,11 @@ endif
 dist-src:
 	@echo "  TAR   $(SRCDIST)"
 	$(Q)rm -rf $(SRCDIST_TMP) && mkdir -p $(SRCDIST_TMP)
-	$(Q)git -C .. archive --prefix=adv98x-$(AX_VERSION)/ HEAD | tar -xf - -C $(SRCDIST_TMP)
-	$(Q)git -C $(LRVNE) archive --prefix=adv98x-$(AX_VERSION)/source/lrvne/ HEAD | tar -xf - -C $(SRCDIST_TMP)
-	$(Q)tar $(TAR_ANON) -czf $(SRCDIST) -C $(SRCDIST_TMP) adv98x-$(AX_VERSION)
+	$(Q)git -C $(SRC_TOP) archive --prefix=$(SRC_NAME)/ HEAD | tar -xf - -C $(SRCDIST_TMP)
+	$(Q)git -C $(SRC_TOP) submodule foreach --quiet --recursive 'echo "$$displaypath"' | \
+	    while read -r sub; do \
+	        git -C "$(SRC_TOP)/$$sub" archive --prefix="$(SRC_NAME)/$$sub/" HEAD | \
+	            tar -xf - -C $(SRCDIST_TMP) || exit 1; \
+	    done
+	$(Q)tar $(TAR_ANON) -czf $(SRCDIST) -C $(SRCDIST_TMP) $(SRC_NAME)
 	$(Q)rm -rf $(SRCDIST_TMP)

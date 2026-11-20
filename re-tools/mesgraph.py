@@ -35,6 +35,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.dirname(HERE)
 sys.path.insert(0, os.path.join(ROOT, 'source', 'tools'))
 sys.path.insert(0, HERE)
+import gamedir  # noqa: E402
 import mes      # noqa: E402
 import mesdis   # noqa: E402
 
@@ -601,7 +602,7 @@ def export(infos, start, entry, out, pics, files, imgdir=None):
         rep.append('Names with different contents on different disks: ' + ('; '.join('%s on %s' % m for m in multi) or 'none'))
         for name, _ in multi:
             if imgdir:
-                rep.append('  %s on screen (decoded pictures in %s): %s' % (name, os.path.relpath(imgdir, ROOT), compare_variants(imgdir, pics, name)))
+                rep.append('  %s on screen (decoded pictures in %s): %s' % (name, os.path.relpath(imgdir, gamedir.require()), compare_variants(imgdir, pics, name)))
             by = collections.defaultdict(set)
             for r in prow:
                 if r[2].upper().endswith('\\' + name):
@@ -711,11 +712,12 @@ def catalog(path, infos):
 
 
 def main(argv):
-    opt = dict(mes=os.path.join(ROOT, 'resources', 'original', 'pc98', 'A', 'MES'),
-               ini=os.path.join(ROOT, 'resources', 'original', 'pc98', 'A', 'NV.INI'),
-               out=os.path.join(ROOT, 'resources', 'derived', 'scripts'),
-               inventory=os.path.join(ROOT, 'resources', 'inventory.tsv'),
-               images=os.path.join(ROOT, 'resources', 'derived', 'images', 'gpc'))
+    game = gamedir.require('mesgraph')
+    opt = dict(mes=gamedir.original(game, 'pc98', 'A', 'MES'),
+               ini=gamedir.original(game, 'pc98', 'A', 'NV.INI'),
+               out=gamedir.derived(game, 'scripts'),
+               inventory=gamedir.inventory(game),
+               images=gamedir.derived(game, 'images', 'gpc'))
     pos = []
     a = argv[1:]
     while a:
