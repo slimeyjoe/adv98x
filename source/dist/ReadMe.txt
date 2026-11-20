@@ -1,9 +1,9 @@
 Adv98X @VERSION@
 ================
 
-A portable engine for games made with Adv98V 1.70.54, the PC-9801 adventure engine of Cat's Pro.
-Adv98X runs a game's original scripts unmodified and reproduces its PC-98 release: text,
-pictures, palette effects, menus, click maps, saves and the FM music.
+A portable engine for PC-9801 games made with Adv98V 1.70.54, the adventure-game engine of
+Tuneup and Ides. Adv98X runs a game's original scripts unmodified and reproduces its PC-98
+release: text, pictures, palette effects, menus, click maps, saves and the FM music.
 
 This archive holds only the engine. It contains none of the game.
 

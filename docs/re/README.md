@@ -1,8 +1,9 @@
 # Adv98V 1.70.54 on AdvBIOS 0.54 — reverse engineering notes
 
-Scope: the generic engine of Cat's Pro's PC-98 adventure games, Adv98V 1.70.54 (`NV.OVL`), on
-AdvBIOS 0.54 (`NV.OV1`), its music driver and its plug-ins, documented as the basis for a new
-engine. The documents describe the original only; decisions about the port belong elsewhere.
+Scope: Adv98V 1.70.54 (`NV.OVL`), the generic adventure-game engine of Tuneup and Ides
+("Copyright(C) Tuneup 1991,93." and "Copyright(C) ｱｲﾃﾞｽ 1991,93." in its banner), on their AdvBIOS
+0.54 (`NV.OV1`), its music driver (K. Kondo's USDtrap) and its plug-ins, documented as the basis for
+a new engine. The documents describe the original only; decisions about the port belong elsewhere.
 
 They were read from one build of these programs: the one on the disks of NOVA ～魅入られた肢体～
 (1993), the first game this engine plays, which is why its files and scripts are the examples

@@ -1,9 +1,10 @@
 # Adv98X
 
-A portable engine for the games of Cat's Pro's PC-98 adventure engine Adv98V 1.70.54 on AdvBIOS
-0.54: **Adv98X** (binary `adv98x`, C prefix `ax_`/`AX_`), with the reverse engineering of those
-programs it is written from. The engine is built on **lrvne**, the shared low-level library of
-this engine and its siblings (submodule `source/lrvne`, public, C prefix `lrv_`).
+A portable engine for the PC-98 games of Adv98V 1.70.54 on AdvBIOS 0.54, the adventure-game engine
+of Tuneup and Ides (as the programs' copyright notices say): **Adv98X** (binary `adv98x`, C prefix
+`ax_`/`AX_`), with the reverse engineering of those programs it is written from. The engine is built
+on **lrvne**, the shared low-level library of this engine and its siblings (submodule
+`source/lrvne`, public, C prefix `lrv_`).
 
 A game is a repository of its own with this one as its submodule `engine/`: its `game.py`
 describes it to the engine's tools (`source/tools/gamedir.py` finds a game: `GAME_DIR`, or the

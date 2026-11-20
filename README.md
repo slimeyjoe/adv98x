@@ -1,31 +1,28 @@
 # Adv98X
 
-A portable engine for games made with Adv98V 1.70.54, the PC-9801 adventure engine of Cat's Pro.
-Adv98X runs a game's original scripts unmodified and aims to reproduce its PC-98 release
-faithfully: text, pictures, palette effects, menus, click maps, saves and the FM music. It is the
-interpreter, AdvBIOS's services, the picture decoder, the music driver and the plug-ins as native
-modules; everything underneath (frame loop, screen, FM chip, fonts, the asset pack, the backends)
-is [lrvne](https://github.com/slimeyjoe/lrvne), a library shared with sibling engines, in the
+A portable engine for PC-9801 games made with Adv98V 1.70.54, an adventure-game engine by Tuneup
+and Ides (アイデス), which runs on their AdvBIOS 0.54: its programs say "Copyright(C) Tuneup
+1991,93." and "Copyright(C) ｱｲﾃﾞｽ 1991,93.". Adv98X runs a game's original scripts unmodified
+and aims to reproduce its PC-98 release faithfully: text, pictures, palette effects, menus,
+click maps, saves and the FM music. It is the interpreter, AdvBIOS's services, the picture
+decoder, the music driver and the plug-ins as native modules; everything underneath (frame
+loop, screen, FM chip, fonts, the asset pack, the backends) is
+[lrvne](https://github.com/slimeyjoe/lrvne), a library shared with sibling engines, in the
 submodule `source/lrvne`.
 
 **A game is a repository of its own** that has this engine as its submodule `engine/`: the
 game's description (`game.py`: what its pack takes from which original file, its profile, how
-its files are imported), the inventory of its files, its own research, its test cases. The
-first is **NOVA ～魅入られた肢体～** (1993): [adv98x-nova](https://github.com/slimeyjoe/adv98x-nova),
-the place to start if you want to play it. Its original scripts play in Japanese and in Fuzion's
-English translation.
+its files are imported), the inventory of its files, its own research, its test cases. To play
+a game, start from its repository: [adv98x-nova](https://github.com/slimeyjoe/adv98x-nova).
 
-The engine is written from the reverse-engineering notes in [`docs/re/`](docs/re/README.md),
-read from NOVA's copy of the original programs; the implementation plan and its status are in
-[`docs/engine-plan.md`](docs/engine-plan.md).
+The engine is written from the reverse-engineering notes in [`docs/re/`](docs/re/README.md);
+the implementation plan and its status are in [`docs/engine-plan.md`](docs/engine-plan.md).
+The notes describe one build of Adv98V 1.70.54 and AdvBIOS 0.54; another build needs its tables
+first (`re-tools/advbuild.py`).
 
-**Status:** NOVA plays through, in Japanese and English. Verified against the original
-interpreter and AdvBIOS running under emulation: every story and all five endings, in both
-languages, play to the same memory, screen, saves and sound calls as the original. Not yet tuned
-by ear and eye (music balance, timing feel). Still missing: features NOVA does not use
-(animation cells, beeper, the STOP-key quit prompt). The research describes one build of
-Adv98V 1.70.54 and AdvBIOS 0.54, the one on NOVA's disks; a game with another build needs its
-tables first (`re-tools/advbuild.py`).
+**Status:** everything its games use; verified against the original interpreter and AdvBIOS
+running under emulation, from a game's repository. Not yet written: what no game here uses
+(animation cells, the beeper, the STOP-key quit prompt).
 
 ## Building
 
@@ -97,6 +94,9 @@ GPL-3.0-or-later ([`LICENSE`](LICENSE)), as is lrvne. Third-party material keeps
 licence: the X.Org bitmap fonts in `source/lrvne/fonts/x11` (see its README), ymfm, the OPN
 emulator, in `source/lrvne/third_party/ymfm` (BSD 3-Clause), and the names marked "VB" in
 `docs/re/listing/advbios-names.tsv`, taken from Valley Bell's annotated AdvBIOS disassembly
-(PC98VNResearch: code GPL-2.0-or-later, documents CC-BY-SA 4.0). The research builds on
-prior work, credited in [`docs/re/README.md`](docs/re/README.md). Adv98V, AdvBIOS and the games
-are Cat's Pro's; this engine is not affiliated with or endorsed by them.
+(PC98VNResearch: code GPL-2.0-or-later, documents CC-BY-SA 4.0). The research builds on prior
+work, credited in [`docs/re/README.md`](docs/re/README.md).
+
+Adv98V and AdvBIOS are Tuneup's and Ides', their music driver USDtrap K. Kondo's; this engine
+contains none of their code and is not affiliated with or endorsed by them or by any game's
+publisher.
