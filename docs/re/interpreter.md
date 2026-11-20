@@ -154,8 +154,8 @@ write them: script-catalog, to do).
 ### 5.2 Player name (**verified**: 0xEBE2)
 
 `name-load` (D2) reads `A:\NAME.DEF` (256 bytes) and copies its first 26 bytes to 0xD937. The file
-holds the name as script text ending in FF FF (the shipped file: …). Wherever a script contains
-`＊＊＊`, the name is printed. Writing the file is the job of the plug-in `INPUTNAM.TCM`.
+holds the name as script text ending in FF FF (the dumped disk's file holds a player's name, not
+a shipped default). Wherever a script contains `＊＊＊`, the name is printed. Writing the file is the job of the plug-in `INPUTNAM.TCM`.
 
 ### 5.3 Drives (**verified** calls, AdvBIOS semantics in advbios.md)
 

@@ -156,7 +156,7 @@ source/
    to the same picture). `set-drive` keeps its state (it is part of the save) but never prompts.
    Saves (`FLAG0`–`FLAG9`) and `NAME.DEF` go through HAL storage records with the original 256-byte
    contents. A fresh storage has none of them. The `NAME.DEF` and `FLAG0`–`FLAG5` on the dumped
-   disk A are the previous owner's state (name …, saves, unlocks), not shipped defaults: they
+   disk A are the previous owner's state (a player's name, saves, unlocks), not shipped defaults: they
    are test inputs only and never packed. Without a `NAME.DEF` the name is the interpreter's
    built-in `＊＊＊` until name entry writes one (new game always runs name entry first).
 9. **Languages.** A language is a script set in the pack (`ja`: the 119 Japanese scripts; `en`: the
