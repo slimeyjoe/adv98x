@@ -86,6 +86,8 @@ except ImportError:             # the VGM writer below is still usable (usdmodel
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'source', 'tools'))
 import gamedir  # noqa: E402
+sys.path.insert(0, HERE)
+import advbuild  # noqa: E402
 OV1 = gamedir.derived(None, 'exe', 'NV.OV1')
 MUSDIR = gamedir.part_dir('PACK.songs')
 VGMDIR = gamedir.derived(None, 'music', 'vgm')
@@ -152,7 +154,7 @@ class USDEmu:
 
     # ---------------- image ----------------
     def _load_mz(self, path):
-        d = open(path, 'rb').read()
+        d = advbuild.check(open(path, 'rb').read(), advbuild.BIOS, path)
         if d[:2] != b'MZ':
             raise EmuError('%s: not an MZ file' % path)
         last, pages, nrel, hdr, _mn, _mx, ss, sp, _ck, ip, cs, relo = struct.unpack_from('<12H', d, 2)

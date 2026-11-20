@@ -78,7 +78,7 @@ class NvOvlEmu(A.AdvBiosEmu):
         self.uc.mem_write(STUB * 16, b'\xcd\x18\xcf\x00\xcf')
         self.uc.mem_write(0x18 * 4, struct.pack('<HH', 0, STUB))
         self.uc.mem_write(0x0A * 4, struct.pack('<HH', 4, STUB))
-        d = open(ovl, 'rb').read()
+        d = A.advbuild.check(open(ovl, 'rb').read(), A.advbuild.INTERPRETER, ovl)
         hdr = struct.unpack_from('<H', d, 8)[0] * 16
         self.uc.mem_write(SEG * 16, d[hdr:hdr + 0x10000])
         self.uc.mem_write(SEG * 16 + len(d) - hdr, bytes(0x10000 - (len(d) - hdr)))

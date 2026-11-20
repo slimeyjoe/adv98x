@@ -45,6 +45,8 @@ except ImportError:                      # the caller reports that the reference
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(HERE), 'source', 'tools'))
 import gamedir  # noqa: E402
+sys.path.insert(0, HERE)
+import advbuild  # noqa: E402
 OV1 = gamedir.derived(None, 'exe', 'NV.OV1')
 
 BASE = 0x1000
@@ -101,7 +103,7 @@ class AdvBiosEmu:
 
     # ---------------- image ----------------
     def _load_mz(self, path):
-        d = open(path, 'rb').read()
+        d = advbuild.check(open(path, 'rb').read(), advbuild.BIOS, path)
         if d[:2] != b'MZ':
             raise ValueError('%s: not an MZ file' % path)
         last, pages, nrel, hdr = struct.unpack_from('<4H', d, 2)

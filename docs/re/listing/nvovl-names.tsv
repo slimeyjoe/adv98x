@@ -1,3 +1,5 @@
+# The interpreter's (NV.OVL) names, for the build re-tools/advbuild.py names (as on NOVA's
+# disks; unpacked md5 1750191fda9b882760eabbed67c79c27): offsets in its one segment.
 0000	entry	shrink memory, check AdvBIOS, copy start script name, jump to C000
 0100	copy_start_name	0x1FC -> file-name buffer
 0113	fatal	print "ERROR: " + message AX (1..5), exit FFh

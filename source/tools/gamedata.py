@@ -139,7 +139,15 @@ def cmd_derive(a):
             plugins = orig['plugins']
             ok &= run(py, os.path.join(retools, 'tcmtool.py'), 'list', '--dir',
                       original(plugins['release'], plugins['prefix']))
-            # AdvBIOS and the interpreter, named from docs/re/listing/
+            # AdvBIOS and the interpreter, named from docs/re/listing/, whose tables are of
+            # one build (re-tools/advbuild.py)
+            sys.path.insert(0, retools)
+            import advbuild
+            for f, which in ((unpacked(bios), advbuild.BIOS), (unpacked(interp), advbuild.INTERPRETER)):
+                try:
+                    advbuild.check(open(f, 'rb').read(), which, f)
+                except advbuild.WrongBuild as e:
+                    sys.exit('gamedata: %s' % e)
             names = os.path.join(ENGINE, 'docs', 're', 'listing')
             lst = os.path.join(der, 'listing')
             os.makedirs(lst, exist_ok=True)
