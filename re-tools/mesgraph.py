@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """Script catalogue of an Adv98V game: transition graph, per-script summary, reachability and
-asset checks (research tool; parser: source/tools/mes.py; findings: docs/re/script-catalog.md,
-docs/re/disks.md).
+asset checks (research tool; parser: source/tools/mes.py; findings on NOVA: its
+docs/re/script-catalog.md, docs/re/disks.md).
 
   python3 -I re-tools/mesgraph.py [export] [--mes DIR] [--ini FILE] [--out DIR] [--inventory TSV]
                                            [--images DIR]
@@ -23,7 +23,7 @@ export writes into --out (git-ignored; the tables quote menu texts):
   reach.txt         the report: reachability from the start script, missing targets, dead code,
                     unreachable segments, picture / music / file checks against the inventory
 
-Drive model (docs/re/disks.md): `set-drive slot value` says which floppy is in a drive unit:
+Drive model (NOVA's docs/re/disks.md): `set-drive slot value` says which floppy is in a drive unit:
 slot 0 = A:, slot 1 = B:; value 0..3 = disk A..D. A name without a drive letter is on unit 0.
 The state is followed in lexical order inside a script and across mes-jump edges (fixpoint).
 """

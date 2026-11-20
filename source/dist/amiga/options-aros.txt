@@ -1,7 +1,7 @@
 Options
 -------
 
-  LANG=ja|en          the language of the text
+  LANG=code           the language of the text (one the pack has)
   PAK=file            the game pack
   WINDOW              in a window on the Workbench (or PUBSCREEN=name) instead of a screen
   SCALE=1|2|3|auto    larger; ASPECT: in the shape of a 4:3 monitor

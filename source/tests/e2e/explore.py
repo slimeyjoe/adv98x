@@ -66,7 +66,7 @@ def main():
     ap.add_argument('--until', default='END')
     ap.add_argument('--frames', type=int, default=3000000)
     ap.add_argument('--storage')
-    ap.add_argument('--until-save', help='stop when the game writes this record (e.g. FLAG3)')
+    ap.add_argument('--until-save', help='stop when the game writes this record (a save file\'s name)')
     ap.add_argument('--title-pick', type=int, default=0,
                     help='the item to take in the first menu (the title): 1 = 2nd story, ...')
     ap.add_argument('--chain', metavar='SAVE:PICK,..',

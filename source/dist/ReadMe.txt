@@ -2,9 +2,8 @@ Adv98X @VERSION@
 ================
 
 A portable engine for games made with Adv98V 1.70.54, the PC-9801 adventure engine of Cat's Pro.
-Its first game is NOVA (1993). Adv98X runs the original scripts unmodified, in Japanese or in
-Fuzion's English translation, and reproduces the PC-98 release: text, pictures, palette
-effects, menus, click maps, saves and the FM music.
+Adv98X runs a game's original scripts unmodified and reproduces its PC-98 release: text,
+pictures, palette effects, menus, click maps, saves and the FM music.
 
 This archive holds only the engine. It contains none of the game.
 
@@ -13,20 +12,19 @@ What you need
 -------------
 
 * SDL 3 (the shared library: libSDL3 from your package manager, Homebrew or MacPorts).
-* The game pack, adv98x.pak, built from your own copy of the PC-98 release (and, for English,
-  the Fuzion translation) with the tools in Adv98X's source: `make data SRC=...` then
-  `make pack` (docs/game-data.md in the source). Put adv98x.pak next to the adv98x program, or
-  name it with --pak.
+* The game's pack, built from your own copy of the game with the game's tools (its source's
+  docs/game-data.md: `make data SRC=...` then `make pack`). Put it next to the adv98x program
+  (as adv98x.pak, or as the only .pak there), or name it with --pak.
 
 
 Playing
 -------
 
-    ./adv98x                      Japanese
-    ./adv98x --lang en            English
+    ./adv98x                      in the game's own language
+    ./adv98x --lang en            in another the pack has, e.g. English
     ./adv98x --help               all options
 
-Options: --lang ja|en, --fullscreen, --window WxH, --scale integer|aspect|fit|stretch,
+Options: --lang CODE, --fullscreen, --window WxH, --scale integer|aspect|fit|stretch,
 --volume 0..100, --no-audio, --opn ymfm|lite, --storage DIR, --pak FILE, --view (browse the
 pictures).
 
@@ -40,16 +38,15 @@ items and places on the maps, right-click to cancel.
   Ctrl+Shift+R        reset: the game starts again at its title (saves are kept)
   Shift+Esc           quit at once
 
-Each ending stays on its last screen for ever, as on the PC-98, where the player switched the
-machine off. Press Ctrl+Shift+R to return to the title; the stories an ending unlocks are
-then on the title menu.
+An ending may stay on its last screen for ever, as on the PC-98, where the player switched the
+machine off. Press Ctrl+Shift+R to return to the title.
 
 
 Saves
 -----
 
-Saves and the player's name are kept as the original's files FLAG0..FLAG9 and NAME.DEF in
-$XDG_DATA_HOME/adv98x/nova (default ~/.local/share/adv98x/nova), or in the directory given
+Saves and the player's name are kept as the original's files (FLAG0..FLAG9, NAME.DEF) in
+$XDG_DATA_HOME/adv98x/<game> (default ~/.local/share/adv98x/<game>), or in the directory given
 with --storage. Files from a PC-98 copy of the game can be put there and are used as they
 are.
 

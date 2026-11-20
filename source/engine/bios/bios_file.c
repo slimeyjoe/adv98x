@@ -1,10 +1,10 @@
 /* SPDX-License-Identifier: GPL-3.0-or-later */
-/* INT F2h, files and disks (docs/re/advbios.md §4.4, §8). All files are on one medium: the
- * drive letter and directories of a name are dropped, the drive selection is kept as state but
- * never prompts (docs/re/disks.md §3, the "simpler alternative"). A file of the game is in the
- * pack under its name, scripts in the current language; every other name is a record of the
- * player's (a save, the player's name) in the HAL's storage, which is also where the game
- * writes. */
+/* INT F2h, files and disks (docs/re/advbios.md §4.4, §8). All files are on one medium (the
+ * "simpler alternative" of a game's research on its disks): the drive letter and directories of
+ * a name are dropped, the drive selection is kept as state but never prompts. A file of the game
+ * is in the pack under its name, scripts in the current language; every other name is a record
+ * of the player's (a save, the player's name) in the HAL's storage, which is also where the
+ * game writes. */
 #include <string.h>
 #include "ax.h"
 #include "bios/bios.h"

@@ -46,15 +46,17 @@ APP_VERSION := $(AX_VERSION)
 
 # The Amiga family (lrvne/backends/amiga/README.md): its release archive (lrvne/mk/amiga-dist.mk)
 # is the drawer Adv98X with the program, the licence and a ReadMe put together from the parts in
-# dist/amiga/ (those all three share and the target's own). No icons: an icon is artwork of a
-# game, and the engine has none of its own.
+# dist/amiga/ (those all three share and the target's own); a part the game has in its own
+# dist/amiga/ replaces the engine's (GAME_PART). No icons: an icon is artwork of a game, and the
+# engine has none of its own.
+GAME_PART = $(or $(if $(GAME_DIR),$(wildcard $(GAME_DIR)/dist/$(1))),dist/$(1))
 AMIGA_FAMILY := $(filter amiga warpos aros,$(TARGET))
 ifneq ($(AMIGA_FAMILY),)
 AMIGA_DIST := dist/amiga
 LRVNE_DIST_DRAWER := Adv98X
 LRVNE_DIST_README_PARTS := $(BUILDROOT)/$(TARGET)/ReadMe-title.txt \
-    $(addprefix $(AMIGA_DIST)/,about.txt requirements-$(TARGET).txt playing.txt \
-    options-$(if $(filter aros,$(TARGET)),aros,os3).txt saves.txt)
+    $(foreach p,about.txt requirements-$(TARGET).txt playing.txt \
+    options-$(if $(filter aros,$(TARGET)),aros,os3).txt saves.txt,$(call GAME_PART,amiga/$(p)))
 LRVNE_DIST_FILES := ../LICENSE
 # the 68k program's least stack (lrvne swaps in one this large when a shell or an icon gave
 # less, 4 KB by default): the interpreter recurses for the script's blocks as the original did
@@ -179,7 +181,7 @@ pack:
 # Release archives. The version is engine/version.h's (the release is tagged v<version>).
 # `make TARGET=sdl3 dist`: $(BUILD)/adv98x-<version>-<DIST_NAME>.tar.gz, which unpacks to
 # Adv98X/{adv98x, ReadMe.txt, LICENSE, LICENSE.ymfm}: the stripped executable, the player's
-# ReadMe (dist/ReadMe.txt, @VERSION@ replaced) and the licences of what is in the executable.
+# ReadMe (dist/ReadMe.txt, or the game's, @VERSION@ replaced) and the licences of what is in the executable.
 # The pack is not in it: it is the game's data, which the player builds from their own copy
 # (the ReadMe says how). A target that can be released has a name for its archives
 # (LRVNE_DIST_NAME of lrvne/mk/target/<TARGET>.mk). `make TARGET=amiga|warpos|aros dist`:
@@ -189,7 +191,7 @@ pack:
 # engine's), with every submodule's at its HEAD, at every level (git archive leaves submodules
 # out; no repository holds game data). SRC_NAME names it; a game's Makefile passes its own.
 # ---------------------------------------------------------------------------------------------
-DIST_README ?= dist/ReadMe.txt
+DIST_README ?= $(call GAME_PART,ReadMe.txt)
 DIST_STRIP  ?= strip
 DIST        := $(BUILD)/adv98x-$(AX_VERSION)-$(LRVNE_DIST_NAME).tar.gz
 DISTDIR     := $(BUILD)/dist

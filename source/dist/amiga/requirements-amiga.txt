@@ -8,9 +8,8 @@ What you need
 * About 1.5 MB of free memory, 250 KB of it chip RAM on a native screen; 4.5 MB more lets the
   program keep the whole pack in memory (PRELOAD), which is faster from slow disks.
 * Sound through Paula (the default) or AHI (AUDIO=ahi).
-* The game pack, adv98x.pak, built on a PC from your own copy of the PC-98 release (and, for
-  English, the Fuzion translation) with the tools in Adv98X's source: `make data SRC=...` then
-  `make pack` (docs/game-data.md in the source). Copy it into this drawer.
+* The game's pack, built on a PC from your own copy of the game with the game's tools (its
+  source's docs/game-data.md: `make data SRC=...` then `make pack`). Copy it into this drawer.
 
 This build has not yet been run on a real machine or in an emulator; reports are welcome.
 

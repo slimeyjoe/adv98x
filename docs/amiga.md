@@ -30,9 +30,10 @@ icon's is smaller (both default to 4 KB), the size from the Makefile (`LRVNE_AMI
 `make TARGET=amiga|warpos|aros dist` makes `build/<target>/adv98x-<version>-<target>.lha`
 (AROS: `-aros-x86_64`): the drawer `Adv98X` with the program, `LICENSE` and `ReadMe.txt`, put
 together from [source/dist/amiga/](../source/dist/amiga/) (the parts the three share and each
-target's requirements and options). No icon: an icon is artwork of a game, and the engine has
+target's requirements and options; a part the game has in its own `dist/amiga/` replaces the
+engine's). No icon: an icon is artwork of a game, and the engine has
 none of its own. No pack: the player builds it from their own copy (`make pack`) and puts
-`adv98x.pak` into the drawer. Saves are `PROGDIR:saves/nova/FLAG0`..`FLAG9` and `NAME.DEF`,
+the game's pack into the drawer. Saves are `PROGDIR:saves/<game>/FLAG0`..`FLAG9` and `NAME.DEF`,
 the original's files.
 
 ## What the port needed of the engine

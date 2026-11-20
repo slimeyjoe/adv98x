@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 """present.py ADV98X_SDL3 PAK [--lang ja|en]: the SDL3 backend's presentation, offscreen.
 
-The game is played from RUN.MES in control mode (Return at every wait, the title's first item)
+The game is played from its start script in control mode (Return at every wait, the title's first item)
 with the window at a size and scale mode per run; at fixed stops the engine's frame (`snap`:
 the planes, palette and graphics-on flag handed to the backend) and what the renderer drew
 (`readback`, lrvne's backends/control/control.c) are compared:

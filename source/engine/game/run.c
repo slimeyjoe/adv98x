@@ -241,7 +241,7 @@ int ax_run(void *ctx, const struct lrv_hal *hal, const struct lrv_run_cfg *cfg)
     int rc;
 
     if (open_pack(hal, cfg) != LRV_OK)
-        lrv_fatal(hal, "cannot use the game pack (make pack; docs/game-data.md)");
+        lrv_fatal(hal, "cannot use the game pack (make pack in the game's directory; its docs/game-data.md)");
 
     memset(&video, 0, sizeof video);
     video.mode = lrv_pc98_video_mode;

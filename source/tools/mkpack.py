@@ -12,7 +12,7 @@ different. Rows whose kind says "never packed" (the dumped copy's own saves and 
 are refused: a new install starts without them, like a new copy of the game.
 
 The pack is lrvne's (source/lrvne/include/lrvne/pack.h, written with its tools/lrvne/xpak.py).
-A file of the game is an entry under its own name ("NV01.GPC"), which is how the scripts ask
+A file of the game is an entry under its own name ("NAME.GPC"), which is how the scripts ask
 for it; its type is one of the engine's (TYPES below, engine/ax.h enum ax_pack_type):
   gpc      every picture once: where copies of a name on several disks differ, the game's
            PACK.pictures.choice names the disk whose copy is taken

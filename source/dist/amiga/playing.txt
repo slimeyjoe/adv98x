@@ -3,8 +3,8 @@ Playing
 
 From the shell, in this drawer:
 
-    adv98x                        Japanese
-    adv98x LANG=en                English
+    adv98x                        in the game's own language
+    adv98x LANG=en                in another the pack has, e.g. English
     adv98x HELP                   all options
 
 The same options work as tool types of an icon (KEYWORD or KEYWORD=value; "(KEYWORD)" is off),
@@ -20,8 +20,7 @@ items and places on the maps, the right button cancels.
   right Amiga+K       kana input on/off (name entry; the JIS kana layout)
   F10                 in a window: the next window size
 
-Each ending stays on its last screen for ever, as on the PC-98, where the player switched the
-machine off. Press Ctrl+Shift+R to return to the title; the stories an ending unlocks are then
-on the title menu.
+An ending may stay on its last screen for ever, as on the PC-98, where the player switched the
+machine off. Press Ctrl+Shift+R to return to the title.
 
 

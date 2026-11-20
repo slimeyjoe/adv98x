@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""GPC picture decoder (PC-98 "PC98)GPCFILE" format, as used by NOVA / Adv98V 1.70).
+"""GPC picture decoder (PC-98 "PC98)GPCFILE" format, as used by Adv98V 1.70 games).
 
 A GPC file holds one 16-colour picture (4 bit planes), an optional 16-entry
 12-bit palette and the screen position the picture is meant to be drawn at.
@@ -32,7 +32,7 @@ checked against the decoder in the game's own AdvBIOS (NV.OV1) and against the
 Windows release's Pi pictures; see re-tools/gpc_verify.py.  No code was copied.
 
 Library use:
-    header, palette, w, h, x, y, pixels = gpc.decode(open('NV01.GPC','rb').read())
+    header, palette, w, h, x, y, pixels = gpc.decode(open('NAME.GPC','rb').read())
       palette  list of 16 (r, g, b), each 0..15 (None if the file has no palette)
       pixels   bytes, w*h palette indexes, row-major
 
@@ -318,7 +318,7 @@ def cmd_png(paths, outdir, screen=False, disk_prefix=False):
 
 def main(argv=None):
     import argparse
-    ap = argparse.ArgumentParser(description='GPC picture decoder (NOVA, PC-98)')
+    ap = argparse.ArgumentParser(description='GPC picture decoder (Adv98V, PC-98)')
     sub = ap.add_subparsers(dest='cmd', required=True)
     a = sub.add_parser('info', help='print header fields as TSV')
     a.add_argument('files', nargs='+')
@@ -330,7 +330,7 @@ def main(argv=None):
                         '(default: PNG is exactly the picture rectangle)')
     a.add_argument('--disk-prefix', action='store_true',
                    help='prefix output names with the grandparent directory '
-                        '(A_NV00.png) so same-named files on several disks do not collide')
+                        '(A_NAME.png) so same-named files on several disks do not collide')
     args = ap.parse_args(argv)
     if args.cmd == 'info':
         cmd_info(args.files)

@@ -7,8 +7,11 @@ both languages, played through the engine and the original interpreter with iden
 (`make TARGET=host e2e`). **M7 done** (2026-11-14): reset key, volume, `--help`/`--version`,
 release archives, README; what remains is in "Open items (after M7)" below. **On lrvne**
 (2026-11-15): the platform layer copied from Xenon at the start is gone, the engine is built on
-the shared library lrvne ("Layering" below). Update the status line and tick milestones here as
-they land; decisions taken while implementing are in "Implementation notes" at the end.
+the shared library lrvne ("Layering" below). **Engine and game apart** (2026-11-21): what is
+particular to a game is its own description (`game.py`) and test cases (`tests/cases.py`), in
+its own repository; NOVA's is `adv98x-nova`, with this engine as its submodule. Update the
+status line and tick milestones here as they land; decisions taken while implementing are in
+"Implementation notes" at the end.
 
 ## Context
 
@@ -26,10 +29,11 @@ Decisions already made by the user:
 - SDL3 first; keep the design open for the Amiga family later.
 - Start from a **copy** of Xenon's platform layer; a shared layer may be considered later
   (it was: lrvne, see "Layering").
-- Licence **GPL-3** (as the Xenon port's files that were copied are). Bundled third-party code keeps its own licences (ymfm BSD-3, fonts).
-- Engine name **Adv98X**: binary `adv98x`, C prefix `ax_`. The repository and the game profile stay
-  `nova`; the pack was `nova.pak` and is `adv98x.pak` since the move to lrvne (a pack is found by
-  the program's name; the game is named by the pack's profile).
+- Licence **GPL-3.0-or-later**, as the Xenon port's files that were copied at the start are.
+  Bundled third-party code keeps its own licences (ymfm BSD-3, fonts).
+- Engine name **Adv98X**: binary `adv98x`, C prefix `ax_`, repository `adv98x`. The game is the
+  repository `adv98x-nova`, its profile `nova`, its pack `nova.pak` (the program takes
+  `adv98x.pak`, else the only `.pak` next to it; the game is named by the pack's profile).
 - FM music first, CD-DA optional later. Japanese and English first; Polish is a later, separate
   effort and the player-name question is left open (the engine must not preclude either answer).
 - A fresh install starts locked (no `FLAG3`–`FLAG5`), like a new copy of the game.
@@ -280,25 +284,29 @@ Where a new session picks up; nothing here blocks playing the game.
   the mouse and the menus) — not done yet; findings become engine fixes with a `check_vm.py`
   scenario where the original can be compared.
 - **Decisions left to the user:** the reset key (Ctrl+Shift+R was chosen because every other key
-  is a PC-98 key the game may read); whether the player's archive should carry a pack-building
-  kit (now it follows Xenon: no pack, the player builds it from the source tree); bundling SDL3
-  into a macOS release (the executable links it dynamically).
+  is a PC-98 key the game may read); bundling SDL3 into a macOS release (the executable links it
+  dynamically). The pack is built with the game's tools (a game's repository, or its
+  pack-building kit).
 - **M5 leftovers, unused by NOVA:** animation cells and lip-sync (C1–C5, INT F3h AH=08h–0Fh),
   the beeper's sound, the STOP-key quit prompt, ACTE1's page commands on two pages.
-- **Later efforts (separate from this plan):** CD-DA option (`resources/music/cd-tracks.tsv`),
-  the Amiga family backends, Polish translation tooling, the pseudonymous public release.
+- **Later efforts (separate from this plan):** CD-DA as an option (NOVA's
+  `resources/music/cd-tracks.tsv` maps its songs to the CD tracks), translation tooling (a
+  Polish NOVA), a second build of the original programs (`re-tools/advbuild.py`).
 
 ## Verification
 
-- `cd source && make data SRC="<your copies>"` then `make pack` — import, inventory check,
-  pack build (fails loudly on anything missing).
-- `make TARGET=host test` — all unit and conformance tests above; every one compares against data
-  produced from the original code or the verified Python tools, not against the engine itself.
-- `make TARGET=host e2e` — headless play of every route in both languages, compared with the
-  original interpreter under emulation (about 15 minutes).
-- `make TARGET=sdl3 dist` — the player's archive; unpack it, put `adv98x.pak` next to `adv98x`,
-  run it (`--version`, `--help`).
-- `make TARGET=sdl3 && ../build/sdl3/adv98x --pak ../build/adv98x.pak [--lang en]` — manual play;
+In a game's directory (NOVA's: `adv98x-nova`):
+
+- `make data SRC="<your copies>"` then `make pack` — import, inventory check, pack build (fails
+  loudly on anything missing).
+- `make test` — all unit and conformance tests above; every one compares against data produced
+  from the original code or the verified Python tools, not against the engine itself. In
+  `source/` without a game: the tests that need none.
+- `make e2e` — headless play of every route in every language, compared with the original
+  interpreter under emulation (about 15 minutes for NOVA).
+- `make TARGET=sdl3 dist` — the player's archive; unpack it, put the game's pack next to
+  `adv98x`, run it (`--version`, `--help`).
+- `make TARGET=sdl3 && build/sdl3/adv98x --pak build/nova.pak [--lang en]` — manual play;
   the user's eyes and ears are the final check on feel (text speed, fades, music balance), with
   DOSBox-X / NP2 runs of the original as the comparison when a doubt needs settling.
 
