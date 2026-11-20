@@ -23,6 +23,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
 sys.path.insert(1, os.path.join(HERE, '..', 'lrvne', 'tools'))
 import gamedata  # noqa: E402
+import gamedir   # noqa: E402
 import mkpack    # noqa: E402
 from lrvne import profile, xpak  # noqa: E402
 
@@ -86,8 +87,8 @@ def main():
             bad += 1
 
     prof = profile.loads(pack.find('profile', xpak.T_META).data)
-    if prof != {k: str(v) for k, v in mkpack.PROFILES[prof.get('id')]['profile'].items()}:
-        print('the profile is not the one mkpack.py describes: %r' % prof)
+    if prof != {k: str(v) for k, v in gamedir.load().PROFILE.items()}:
+        print('the profile is not the one the game describes (game.py): %r' % prof)
         bad += 1
     if not pack.find(prof['start'].split('\\')[-1], mkpack.T_MES, lang=prof['lang']):
         print('the start script %s is not in the pack' % prof['start'])

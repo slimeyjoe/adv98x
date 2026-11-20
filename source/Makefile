@@ -160,13 +160,12 @@ distclean: clean data-clean
 # ---------------------------------------------------------------------------------------------
 # The pack: fonts (lrvne's xfont from the X11 bitmap fonts it carries) and everything the engine
 # needs from the original game (tools/mkpack.py, on lrvne's pack writer). The same for every
-# target. The pack is named after the program, which is where a backend looks for it; which game
-# it is, is in its profile (GAME=<id> chooses when mkpack.py knows several).
+# target. The game names it (game.py PACK.name); a backend takes <program>.pak, else the only
+# .pak next to the program.
 # ---------------------------------------------------------------------------------------------
 X11FONTS ?= $(LRVNE)/fonts/x11
 ORIGINAL ?= $(GAME_DIR)/resources/original
-PAK      ?= $(BUILDROOT)/$(APP_NAME).pak
-GAME     ?=
+PAK      ?= $(BUILDROOT)/$(if $(GAME_DIR),$(shell $(LRVNE_PY) tools/gamedir.py get PACK.name),$(APP_NAME).pak)
 .PHONY: pack
 pack:
 	$(NEED_GAME)
@@ -174,7 +173,7 @@ pack:
 	$(Q)$(LRVNE_TOOL) xfont --no-bold -o $(BUILDROOT)/fonts/ank8.xfnt $(X11FONTS)/8x16rk.bdf >/dev/null
 	$(Q)$(LRVNE_TOOL) xfont --no-bold -o $(BUILDROOT)/fonts/k16.xfnt $(X11FONTS)/jiskan16.bdf >/dev/null
 	$(Q)$(LRVNE_PY) tools/mkpack.py --original $(ORIGINAL) --fonts $(BUILDROOT)/fonts \
-	    $(if $(GAME),--game $(GAME)) -o $(PAK)
+	    -o $(PAK)
 
 # ---------------------------------------------------------------------------------------------
 # Release archives. The version is engine/version.h's (the release is tagged v<version>).
