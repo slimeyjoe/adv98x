@@ -3,19 +3,20 @@
 """check_mes.py TEST_MES ORIGINAL: the interpreter's token stepper (skip_token 0xED3B), operand
 reader (get_number 0xEC54) and block scanner (skip_block 0xEC22) against source/tools/mes.py,
 whose scanner agrees with the interpreter's on every block of every script
-(re-tools/mesdis.py check), on every byte offset of the 118 Japanese and 117 English scripts
-and NV.INI. Offsets where mes.py's scan runs off the end of the file are left out (the engine
+(re-tools/mesdis.py check), on every byte offset of every script of every language and of the
+start file. Offsets where mes.py's scan runs off the end of the file are left out (the engine
 reads on into the memory after the script there, as the interpreter would). Numbers compare
 modulo 2^16: the interpreter computes them in AX, mes.py does not wrap (only bytes that are
 not real operands, e.g. inside strings, reach above 65535).
 """
-import glob
 import os
 import subprocess
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+import gamedata  # noqa: E402
+import gamedir  # noqa: E402
 import mes  # noqa: E402
 
 
@@ -46,9 +47,11 @@ def expected(d):
 
 def main():
     exe, original = sys.argv[1], sys.argv[2]
-    files = sorted(glob.glob(os.path.join(original, 'pc98', 'A', 'MES', '*.MES')))
-    files += sorted(glob.glob(os.path.join(original, 'en', 'MES', '*.MES')))
-    files += [os.path.join(original, 'pc98', 'A', 'NV.INI')]
+    desc = gamedir.load()
+    files = [f for lang in desc.PACK['languages']
+             for f in gamedata.part_files(original, desc.PACK['scripts'][lang])]
+    start = desc.ORIGINAL['start']['path']
+    files += [os.path.join(original, desc.ORIGINAL['release'], start)]
     bad = checked = 0
     for f in files:
         d = open(f, 'rb').read()

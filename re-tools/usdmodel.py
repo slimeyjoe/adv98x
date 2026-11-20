@@ -7,7 +7,7 @@ register writes, clock for clock, as the original driver run by usdemu.py.
 
     usdmodel.py SONG.USO [-o out.vgm] [--log out.tsv] [--loops N] [--seconds S]
     usdmodel.py --check [FILE ...] [--loops N] [--cap S] [--synth N] [--seed N] [-v]
-        compare the model with the emulated original (default: all 28 files):
+        compare the model with the emulated original (default: all the game's songs):
         scenario "play"      = sound "file" / sound 1, intro + N loop passes (default 3),
                                capped at --cap seconds of song time (default 420)
         scenario "fade"      = fade-in start, fade-out, stop, restarts with volume offsets,
@@ -999,7 +999,7 @@ def check(files, loops=3, cap=420.0, verbose=False, synth=400):
     rng = random.Random(11)
     both = 0
     pbad = 0
-    for name in ('NV08', 'NV14', 'NVSE01', 'NV10'):
+    for name in gamedir.cases().USD_PHASE_SONGS:
         path = [f for f in all_files() if os.path.basename(f).upper() == name + '.USO']
         if not path:
             continue

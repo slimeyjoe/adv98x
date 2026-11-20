@@ -26,6 +26,9 @@ import subprocess
 import sys
 import tempfile
 
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'tools'))
+import gamedir  # noqa: E402
+
 
 KEYS = {'ok': [0x1C, 0x0D], 'right': [0x3C, 0x00]}     # PC-98 scan code, character
 
@@ -35,7 +38,8 @@ def base(name):
 
 
 def regions(original, name):
-    path = os.path.join(original, 'pc98', 'A', 'CLM', base(name) + '.CLM')
+    part = gamedir.get('PACK.click_maps')            # where the game keeps them
+    path = os.path.join(original, part['release'], part['prefix'], base(name) + '.CLM')
     d = open(path, 'rb').read()
     x0, y0, w, h = d[1:5]
     cells = collections.defaultdict(list)

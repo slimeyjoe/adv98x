@@ -18,6 +18,8 @@ PY=${PYTHON:-python3}
 # EMU_PYTHON names it (docs/re/README.md "Tools"); without it $PY is tried
 EMU_PY=${EMU_PYTHON:-$(command -v "$PY")}
 ORIGINAL=$GAME/resources/original
+# the game's description and test cases (tools/gamedir.py): languages, the smoke test's song, ...
+gamedir() { $PY -I "$HERE/../tools/gamedir.py" "$@"; }
 DERIVED=$GAME/resources/derived
 OV1=$DERIVED/exe/NV.OV1
 FONTS=$BUILDROOT/fonts
@@ -31,8 +33,7 @@ run() {
 if [ "$MODE" = e2e ]; then
     if [ -x "$EMU_PY" ] && "$EMU_PY" -c 'import unicorn' 2>/dev/null && [ -f "$PAK" ] &&
        [ -f "$DERIVED/exe/NV.OVL" ]; then
-        run "$EMU_PY" -I "$HERE/check_vm.py" "$BIN/test_vm" "$PAK" "$ORIGINAL" "$FONTS" \
-            route1 route2a route2b route2c route3 route1_en route2a_en route2b_en route2c_en route3_en
+        run "$EMU_PY" -I "$HERE/check_vm.py" "$BIN/test_vm" "$PAK" "$ORIGINAL" "$FONTS" routes
     else
         echo "e2e: needs a Python with unicorn (EMU_PYTHON), $PAK and the unpacked NV.OVL"
         rc=1
@@ -73,31 +74,35 @@ if [ -n "$HAVE_GAME" ] && [ -f "$PAK" ]; then
     echo "== adv98x --present-test"
     n=$("$BUILD/adv98x" --pak "$PAK" --present-test | grep -c '"ev":"snap"') || rc=1
     [ "${n:-0}" -gt 0 ] && echo "present-test: $n snapshots" || { echo "present-test: no snapshots"; rc=1; }
-    run $PY -I "$HERE/check_run.py" "$BUILD/adv98x" "$PAK" "$ORIGINAL" --lang ja --frames 40000
-    run $PY -I "$HERE/check_run.py" "$BUILD/adv98x" "$PAK" "$ORIGINAL" --lang en --frames 40000
+    LANGS=$(gamedir get PACK.languages)
+    for lang in $LANGS; do
+        run $PY -I "$HERE/check_run.py" "$BUILD/adv98x" "$PAK" "$ORIGINAL" --lang $lang --frames 40000
+    done
     # the sound path end to end (service call, sequencer, OPN core): a song is heard
-    echo "== render smoke: NV01 through the game's sound path"
-    "$BUILD/adv98x" --pak "$PAK" --render-wav "$BIN/nv01.wav" --song NV01 --seconds 4 2>/dev/null &&
-        $PY -I -c 'import sys,wave,struct; w=wave.open(sys.argv[1]); n=w.getnframes(); d=struct.unpack("<%dh"%n,w.readframes(n)); p=max(abs(x) for x in d); print("render: %d frames at %d Hz, peak %d" % (n, w.getframerate(), p)); sys.exit(0 if p > 1000 and n > 3*w.getframerate() else 1)' "$BIN/nv01.wav" || rc=1
+    SONG=$(gamedir case SMOKE_SONG)
+    echo "== render smoke: $SONG through the game's sound path"
+    "$BUILD/adv98x" --pak "$PAK" --render-wav "$BIN/smoke.wav" --song $SONG --seconds 4 2>/dev/null &&
+        $PY -I -c 'import sys,wave,struct; w=wave.open(sys.argv[1]); n=w.getnframes(); d=struct.unpack("<%dh"%n,w.readframes(n)); p=max(abs(x) for x in d); print("render: %d frames at %d Hz, peak %d" % (n, w.getframerate(), p)); sys.exit(0 if p > 1000 and n > 3*w.getframerate() else 1)' "$BIN/smoke.wav" || rc=1
     # --volume scales every sample by v/100 (as v*256/100 / 256, truncated toward zero)
-    "$BUILD/adv98x" --pak "$PAK" --render-wav "$BIN/nv01-30.wav" --song NV01 --seconds 4 --volume 30 2>/dev/null &&
+    "$BUILD/adv98x" --pak "$PAK" --render-wav "$BIN/smoke-30.wav" --song $SONG --seconds 4 --volume 30 2>/dev/null &&
         $PY -I -c 'import sys,wave,struct
 def rd(f):
     w=wave.open(f); n=w.getnframes(); return struct.unpack("<%dh"%n,w.readframes(n))
 a,b=rd(sys.argv[1]),rd(sys.argv[2]); g=30*256//100
 bad=sum(1 for x,y in zip(a,b) if y!=int(x*g/256))
-print("render --volume 30: %d samples, %d not scaled by %d/256" % (len(b), bad, g)); sys.exit(0 if len(a)==len(b) and not bad else 1)' "$BIN/nv01.wav" "$BIN/nv01-30.wav" || rc=1
-    run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" ja
-    run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" en
+print("render --volume 30: %d samples, %d not scaled by %d/256" % (len(b), bad, g)); sys.exit(0 if len(a)==len(b) and not bad else 1)' "$BIN/smoke.wav" "$BIN/smoke-30.wav" || rc=1
+    STORIES=$(gamedir case STORIES)
+    for lang in $LANGS; do
+        run "$HERE/e2e/stories.sh" "$BUILD/adv98x" "$PAK" "$ORIGINAL" $lang $STORIES
+    done
     # the engine's own shutdown: the tick limit ends the run through it (as on the machines) and
     # the headless backend fails a run that leaves memory behind
-    # (lrvne/docs/porting-an-engine.md); the schedule is the AROS check's, which reaches
-    # ACTE1's blocks
+    # (lrvne/docs/porting-an-engine.md); the game's schedule reaches as much of it as it can
     echo "== adv98x to --max-ticks: the engine frees everything it allocated"
     mkdir -p "$BIN/teardown"
     t=0
     "$BUILD/adv98x" --pak "$PAK" --no-audio --storage "$BIN/teardown" --max-ticks 30000 \
-        --autoplay 'rand:11 shift:2000-30000' >/dev/null 2>"$BIN/teardown/log" || t=$?
+        --autoplay "$(gamedir case TEARDOWN_AUTOPLAY)" >/dev/null 2>"$BIN/teardown/log" || t=$?
     if [ $t -eq 3 ]; then
         echo "teardown: ended at the tick limit, nothing left"
     else

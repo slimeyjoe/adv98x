@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """check_usd.py TEST_USD [ORIGINAL]: the engine's music driver (engine/snd/usd.c) against
-re-tools/usdmodel.py, the clean-room model of NOVA's USDdrv that is identical, write for write
+re-tools/usdmodel.py, the clean-room model of AdvBIOS's USDdrv that is identical, write for write
 and clock for clock, to the original driver (segment 0328 of NV.OV1) run under emulation
 (usdmodel.py --check against re-tools/usdemu.py), and directly against the original driver's
 recordings.
@@ -18,7 +18,7 @@ those of usdmodel.py --check, with the same parameters:
   phase      four songs x four phases of the two timers at the start call
   synthetic  --synth generated songs (400; usdmodel.synth_song with usdmodel's seed and its
              exact sequence of calls: groups of 8 songs on one driver, effect banks, play_se,
-             stop by priority, fades with a threshold - what NOVA's files do not use)
+             stop by priority, fades with a threshold - what the game's songs do not use)
   recording  per song with a recording resources/derived/music/vgm/<song>.tsv (usdemu.py
              --all --logs: the original driver under emulation, `sound "file"` + `sound 1`
              after AdvBIOS start-up, intro + 2 loop passes or 60 s): every write the original
@@ -231,7 +231,7 @@ def check_chain(ck, files):
 
 def check_phase(ck, files):
     rng = random.Random(11)
-    for name in ('NV08', 'NV14', 'NVSE01', 'NV10'):
+    for name in gamedir.cases().USD_PHASE_SONGS:
         path = [f for f in files if os.path.basename(f).upper() == name + '.USO']
         if not path:
             continue

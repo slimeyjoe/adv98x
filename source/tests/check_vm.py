@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""check_vm.py TEST_VM PAK ORIGINAL FONTS [SCENARIO...]: the engine against the original
-interpreter. Each scenario starts the game at RUN.MES with given save files and key presses and
-runs it twice: through the engine (test_vm) and through NV.OVL on AdvBIOS under emulation
-(re-tools/nvovl_emu.py). Both stop when the game waits for input and no key is left (or ends);
+"""check_vm.py TEST_VM PAK ORIGINAL FONTS [SCENARIO... | routes]: the engine against the original
+interpreter. Each scenario starts the game at its start script (the profile's `start`) with given
+save files and key presses and runs it twice: through the engine (test_vm) and through NV.OVL on
+AdvBIOS under emulation (re-tools/nvovl_emu.py). Both stop when the game waits for input and no key is left (or ends);
 then these must be identical:
 
   * the interpreter's state: 0000-00FFh (flags, variables, script name, drives), the script
@@ -19,25 +19,24 @@ then these must be identical:
   * the sound calls (INT F4h function and argument), in order;
   * every palette write of the plug-ins (INT F3h AH=13h / 15h), in order.
 
-Besides the game's own scripts, SYNTHETIC scenarios run test scripts assembled here (put in
-place of RUN.MES on both sides) to exercise what NOVA reaches only late in the game (PALCH,
-WHITEH).
+The scenarios are the game's (its tests/cases.py, written with casekit.py): SCENARIOS play the
+game's own scripts; SYNTHETIC ones run test scripts assembled there, put in place of the start
+script on both sides, for what the game reaches only late (plug-ins' calls, say).
 
-ROUTES play a whole story (`make e2e`, not in the default run: 5-12 CPU minutes each under
-emulation). The input comes from the exploring player of tests/e2e/explore.py run on the engine
-(adv98x next to the test programs) with the story choices fixed per route, recorded as keys and
-clicks; both sides then replay it from RUN.MES until the game writes the story's unlock file
-(FLAG3/4/5; END loops for ever after it), where the state is compared as above. The route must
-pass through the script that sets the ending's flag (script-catalog.md §5, §8).
+ROUTES (`routes`: all of them; `make e2e`, not in the default run: minutes each under
+emulation) play a whole story. The input comes from the exploring player of tests/e2e/explore.py
+run on the engine (adv98x next to the test programs) with the story choices fixed per route,
+recorded as keys and clicks; both sides then replay it from the start script until the game
+writes the route's unlock file (an ending may loop for ever after it), where the state is
+compared as above. The route must pass through the script the route names.
 
 Scenarios run in parallel (CHECK_VM_JOBS, default: the number of CPUs).
 CHECK_VM_OUT=DIR writes both screens of a failing scenario there as PNG.
 
 Input is the PC-98 keyboard: a key is accepted only while the game waits for one. The dumped
-copy's own saves (resources/original/pc98/A/FLAG0..5, NAME.DEF) are the test inputs of the
-scenarios that need saves; they are never packed.
+copy's own saves (in the game's cases.SAVES_DIR) are the test inputs of the scenarios that need
+saves; they are never packed, and those scenarios are skipped without them.
 """
-import glob
 import os
 import subprocess
 import sys
@@ -46,165 +45,36 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.path.join(ROOT, 're-tools'))
+sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+import gamedir  # noqa: E402
 
-RET, DOWN, RIGHT = (0x1C, 0x0D), (0x3D, 0x00), (0x3C, 0x00)
-RET_TO_CLICK = ('ret*',)          # Return at every key wait up to the next click-map wait
-RESET = ('reset',)                # the reset button (engine only): the original is started anew
-                                  # with the keys after it, the engine must end in the same state
-DUMP_SAVES = ['FLAG0', 'FLAG1', 'FLAG2', 'FLAG3', 'FLAG4', 'FLAG5', 'NAME.DEF']
+GAME = gamedir.cases()
+from casekit import RESET  # noqa: E402  (gamedir.cases() put it on the path)
 
-# name: (language, save files from the dump, keys)
-SCENARIOS = {
-    # title menu (menu2): 3 x down to "continue", Return, file No1 -> flag-load 0
-    'continue': ('ja', DUMP_SAVES, [DOWN] * 3 + [RET, RET] + [RET] * 40),
-    # "2nd story": an empty noun list selects at once
-    # the 2nd / 3rd story start with name entry: Return alone takes the default name
-    'story2': ('ja', DUMP_SAVES, [DOWN, RET] + [RET] * 40),
-    'story3': ('ja', DUMP_SAVES, [DOWN, DOWN, RET] + [RET] * 40),
-    # a new game on a fresh install; the name typed: a, ｶ, ﾞ, ﾊ, ﾟ, BS, ﾎ, ﾟ, Z, Return
-    'newgame': ('ja', [], [RET, (0x1D, 0x61), (0x24, 0xB6), (0x1A, 0xDE), (0x17, 0xCA),
-                           (0x1B, 0xDF), (0x0E, 0x08), (0x2D, 0xCE), (0x1B, 0xDF),
-                           (0x29, 0x5A), RET] + [RET] * 30),
-    # continue, click SAVE on the 2nd-deck map (region 14), file No2 -> flag-save 1
-    'save': ('ja', DUMP_SAVES, [DOWN] * 3 + [RET, RET, RET_TO_CLICK, ('click', 550, 243), DOWN, DOWN, RET]
-             + [RET] * 10),
-    # continue, click a room of the map
-    'map_click': ('ja', DUMP_SAVES, [DOWN] * 3 + [RET, RET, RET_TO_CLICK, ('click', 120, 330)]
-                  + [RET] * 30),
-    'sound': ('ja', DUMP_SAVES, [DOWN] * 4 + [RET] + [DOWN, RET, DOWN, DOWN, RET]),
-    'graphic': ('ja', DUMP_SAVES, [DOWN] * 5 + [RET] + [RET] * 12),
-    # Sound mode (script-catalog.md §9): every song (verb 0, nouns 0-15), every effect (verb 1,
-    # nouns 0-10); a key wait follows each choice
-    'sound_all': ('ja', DUMP_SAVES, [DOWN] * 4 + [RET]
-                  + [k for n in range(16) for k in [RET] + [RIGHT] * n + [RET, RET]]
-                  + [k for n in range(11) for k in [RIGHT, RET] + [RIGHT] * n + [RET, RET]]),
-    # Graphic mode: the 45 screens by key (verb 0), then automatically (verb 1, delay 100)
-    'graphic_all': ('ja', DUMP_SAVES, [DOWN] * 5 + [RET] + [RET] + [RET] * 45 + [RIGHT, RET]),
-    'continue_en': ('en', DUMP_SAVES, [DOWN] * 3 + [RET, RET] + [RET] * 40),
-    # the reset button while a song plays in Sound mode, in the game, and in name entry
-    'reset_sound': ('ja', DUMP_SAVES, [DOWN] * 4 + [RET, RET, RET, RESET]
-                    + [DOWN] * 3 + [RET, RET] + [RET] * 40),
-    'reset_game': ('ja', DUMP_SAVES, [DOWN] * 3 + [RET, RET, RET_TO_CLICK, RESET]
-                   + [DOWN] * 4 + [RET] + [DOWN, RET, DOWN, DOWN, RET]),
-    'reset_name': ('ja', [], [RET, (0x1D, 0x61), (0x24, 0xB6), RESET, RET, (0x29, 0x5A), RET]
-                   + [RET] * 30),
-}
+SCENARIOS, SYNTHETIC, ROUTES = GAME.SCENARIOS, GAME.SYNTHETIC, GAME.ROUTES
+START = gamedir.load().PROFILE['start']                 # the start script, as the game names it
+START_NAME = START.split('\\')[-1].upper()
 
-
-# ---- synthetic scripts: assembled here, run in place of RUN.MES on both sides ----
-def num(n):
-    if n < 5:
-        return bytes([0x23 + n])
-    if n < 256:
-        return bytes([0x28, n])
-    return bytes([0x29 + (n >> 14), (n >> 7) & 0x7F, n & 0x7F])
-
-
-def qs(text):
-    return b'"' + text.encode('ascii') + b'"'
-
-
-def op(code, *args):
-    out = bytes([code])
-    for a in args:
-        out += qs(a) if isinstance(a, str) else num(a)
-    return out
-
-
-END = b'\xab\xff\xff\xff\xfe'            # wait for a key (the run stops there), end
-SHOW_NV01 = op(0xC9, '\\GPC\\NV01.GPC') + op(0xCF, 0, 3)     # a picture with its palette
-
-
-def palch_script():
-    s = op(0xC8, 'PALCH.TCM', 8704) + SHOW_NV01
-    s += op(0xCD, 8704, 14, 11, 9, 10, 6)          # NOVA's call: glide colour 14 to A9B
-    s += op(0xCD, 8704, 3, 15, 0, 7)               # four arguments: at once
-    s += op(0xD1, 2, 7) + op(0xCD, 8704, 5, 0, 15, 15, 1)   # at brightness 7, speed 1
-    s += op(0xCD, 8704, 2, 1, 2, 3, 0)             # speed 0
-    s += op(0xCD, 8704, 16, 1, 2, 3, 4) + op(0xCD, 8704, 2, 16, 2, 3)    # rejected
-    return s + END
-
-
-def whiteh_script():
-    s = op(0xC8, 'WHITEH.TCM', 5376) + SHOW_NV01
-    s += op(0xCD, 5376, 1, 8)                      # NOVA's call: to white, 8 frames a step
-    s += SHOW_NV01 + op(0xCD, 5376, 0, 3)          # from white to the mailbox (zeros)
-    s += SHOW_NV01 + op(0xCD, 5376, 2, 2)          # both, the second half one frame faster
-    s += op(0xCD, 5376, 1, 0) + op(0xCD, 5376, 3, 1)     # speed 0; mode 3 rejected
-    return s + END
-
-
-def curtain_script():
-    s = SHOW_NV01
-    s += op(0xC6, 0, 0, 159, 99, 7)                # MON01: cover everything in colour 7
-    s += op(0xC6, 20, 10, 100, 60, 15)             # uncover a part
-    s += op(0xC6, 30, 30, 70, 80, 2)               # cover a part in colour 2
-    return s + END
-
-
-def acte1_script():
-    a = lambda cmd: op(0xCD, 256, cmd)
-    s = op(0xC8, 'ACTE1.TCM', 256) + a('INIT') + SHOW_NV01
-    s += a('COPY 0 10 50 20 40 0 50 200')          # within page 0 (the harness has one page)
-    s += a('MOVE 5 100 10 30 8 110')                # overlapping: smears
-    s += a('OVER 1,LOAD \\GPC\\NV19.GPC,OVER 0')     # a picture, colour 0 transparent
-    s += a('GET 3 0 0 10 10,OVER 1,PUT 3 40 300,FREE 3,OVER 0')
-    s += a('VIEW 10 10 60 300,GET 4 0 0 20 20,PUT 4 5 5,PUT 4 70 390,WAIT 3')
-    s += a('GET 5 2 2 4 4, put 5 70 200,fREE 5')    # first letters only, any case
-    return s + END
-
-
-SYNTHETIC = {
-    'acte1': ('ja', [], [], acte1_script),
-    'curtain': ('ja', [], [], curtain_script),
-    'palch': ('ja', [], [], palch_script),
-    'whiteh': ('ja', [], [], whiteh_script),
-}
-
-# the 2nd story's endings by design (script-catalog.md §5): L is the sum of the scored choices
-L_MAX = ['NOVA2=0', '2D21=1', 'CAP=0', '2CLD=0', 'YUKA2=0', '2LEM=0', '2MAL=1']    # L = 8 -> 2A
-L_MIN = ['NOVA2=1', '2D21=0', 'CAP=1', '2CLD=1', 'YUKA2=1', '2LEM=1', '2MAL=1']    # L = 0 -> 2C
-# name: (language, save files from the dump, title menu item, menu choices, unlock file written,
-#        the script that sets the ending's flag)
-ROUTES = {}
-for _l, _sfx in (('ja', ''), ('en', '_en')):
-    ROUTES.update({
-        'route1' + _sfx: (_l, [], 0, [], 'FLAG3', 'S025'),
-        'route2a' + _sfx: (_l, ['FLAG3'], 1, L_MAX, 'FLAG4', 'RO04'),
-        'route2b' + _sfx: (_l, ['FLAG3'], 1, ['2MAL=0'], 'FLAG4', 'HHMAL'),       # R217
-        'route2c' + _sfx: (_l, ['FLAG3'], 1, L_MIN, 'FLAG4', 'RO04B'),
-        'route3' + _sfx: (_l, ['FLAG3', 'FLAG4'], 2, [], 'FLAG5', '3H'),
-    })
-
+# the interpreter's memory compared (the build of re-tools/advbuild.py)
 RANGES = [(0x0000, 0x0100), (0x9000, 0xC000), (0xC006, 0xD006), (0xD006, 0xD8C0), (0xD937, 0xD959),
           (0xD9E3, 0xDB00), (0xDB20, 0xDC20)]
 
 
-def original_files(original, lang):
-    files = {}
-    for d in 'DCBA':                            # disk A's copy of a name wins
-        for f in glob.glob(os.path.join(original, 'pc98', d, '*', '*')):
-            files[os.path.basename(f).upper()] = open(f, 'rb').read()
-    for f in glob.glob(os.path.join(original, 'pc98', 'A', '*.TCM')):
-        files[os.path.basename(f).upper()] = open(f, 'rb').read()
-    if lang == 'en':
-        for f in glob.glob(os.path.join(original, 'en', 'MES', '*.MES')):
-            files[os.path.basename(f).upper()] = open(f, 'rb').read()
-    # NV43A: the disk B file, as the pack (docs/re/disks.md §4)
-    files['NV43A.GPC'] = open(os.path.join(original, 'pc98', 'B', 'GPC', 'NV43A.GPC'), 'rb').read()
-    return files
+def save_file(original, name):
+    """one of the dumped copy's own saves (the game's cases.SAVES_DIR)"""
+    return os.path.join(original, GAME.SAVES_DIR, name)
 
 
 def run_reference(original, fonts, lang, saves, keys, script=None, stop=None):
     import nvovl_emu
     if RESET in keys:                           # the machine started again: what follows
         keys = keys[len(keys) - keys[::-1].index(RESET):]
-    storage = {s: open(os.path.join(original, 'pc98', 'A', s), 'rb').read() for s in saves}
-    files = original_files(original, lang)
+    storage = {s: open(save_file(original, s), 'rb').read() for s in saves}
+    files = GAME.interpreter_files(original, lang)
     if script:
-        files['RUN.MES'] = script
+        files[START_NAME] = script
     emu = nvovl_emu.NvOvlEmu(files, fonts=fonts, keys=list(keys), storage=storage, stop_save=stop)
-    r = emu.run('\\MES\\RUN.MES', count=100_000_000_000 if stop else 400_000_000)
+    r = emu.run(START, count=100_000_000_000 if stop else 400_000_000)
     written = {k: v for k, v in r['storage'].items() if storage.get(k) != v}
     return dict(end=r['end'], mem=r['mem'], planes=r['planes'], pointer=r['pointer_planes'],
                 palette_log=r['palette_log'], tvram=r['tvram'],
@@ -220,7 +90,7 @@ def script_pack(pak, script):
     out = xpak.PackWriter(langs=[pack.langs[i] for i in sorted(pack.langs)])
     for e in pack.entries:
         if e.name != xpak.LANGS_ENTRY:          # the writer makes that entry itself
-            out.add(e.raw_name, e.type, script if e.name == 'RUN.MES' else e.data,
+            out.add(e.raw_name, e.type, script if e.name == START_NAME else e.data,
                     lang=e.lang_tag or None)
     path = os.path.join(tempfile.mkdtemp(prefix='adv98x-pak-'), 'test.pak')
     out.write(path)
@@ -232,7 +102,7 @@ def route_keys(exe, pak, original, name):
     lang, saves, title, choose, unlock, via = ROUTES[name]
     d = tempfile.mkdtemp(prefix='adv98x-route-')
     for s in saves:
-        open(os.path.join(d, s), 'wb').write(open(os.path.join(original, 'pc98', 'A', s), 'rb').read())
+        open(os.path.join(d, s), 'wb').write(open(save_file(original, s), 'rb').read())
     rec, route = os.path.join(d, 'keys.json'), os.path.join(d, 'route.txt')
     cmd = [sys.executable, '-I', os.path.join(HERE, 'e2e', 'explore.py'), exe, pak, original,
            '--lang', lang, '--storage', d, '--until-save', unlock, '--title-pick', str(title),
@@ -252,7 +122,7 @@ def run_engine(exe, pak, original, lang, saves, keys, script=None, stop=None):
     d = tempfile.mkdtemp(prefix='adv98x-vm-')
     before = {}
     for s in saves:
-        data = open(os.path.join(original, 'pc98', 'A', s), 'rb').read()
+        data = open(save_file(original, s), 'rb').read()
         open(os.path.join(d, s), 'wb').write(data)
         before[s] = data
     keystr = ','.join('C:%d:%d' % k[1:] if k[0] == 'click' else 'R*' if k[0] == 'ret*' else
@@ -352,6 +222,13 @@ def write_png(path, planes, dac):
 def main():
     exe, pak, original, fonts = sys.argv[1:5]
     names = sys.argv[5:] or list(SCENARIOS) + list(SYNTHETIC)
+    if names == ['routes']:
+        names = list(ROUTES)
+    skipped = [n for n in names if n in SCENARIOS
+               and not all(os.path.exists(save_file(original, f)) for f in SCENARIOS[n][1])]
+    if skipped:
+        print('check_vm: skipped without the dumped copy\'s saves: %s' % ' '.join(skipped))
+        names = [n for n in names if n not in skipped]
     try:
         import unicorn  # noqa: F401
     except ImportError:

@@ -53,12 +53,14 @@ $CC -std=c99 -O2 -D_POSIX_C_SOURCE=200809L $inc -o "$out/be68k-native" $srcs ||
 
 rc=0
 snaps=$(i=500; while [ $i -le "$ticks" ]; do printf '%s,' $i; i=$((i + 500)); done)
-for lang in ja en; do
+langs=$(python3 -I "$here/../../tools/gamedir.py" get PACK.languages) || exit 1
+first=${langs%% *}
+for lang in $langs; do
     spec=$out/spec-$lang.txt
     # random presses of return, up, down and esc (menus, waits, the name entry), Shift held
-    # to skip text after the opening; the English run also holds a cursor key for a while
-    # (the mouse's key emulation)
-    seed=11; [ $lang = en ] && seed=23
+    # to skip text after the opening, a cursor key held for a while (the mouse's key
+    # emulation); the languages after the first with another seed
+    seed=11; [ $lang = "$first" ] || seed=23
     printf 'rand:%s shift:2000-%s right:3000-3200 snap:%s\n' $seed "$ticks" "${snaps%,}" >"$spec"
     rm -rf "$out/storage-$lang" && mkdir -p "$out/storage-$lang"
     "$exe" --pak "$pak" --lang $lang --autoplay "@$spec" --max-ticks "$ticks" --opn lite \

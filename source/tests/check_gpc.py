@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 """check_gpc.py TEST_GPC ORIGINAL: the engine's GPC decoder (engine/gfx/gpc.c) against
-source/tools/gpc.py, which is bit-exact with AdvBIOS's decoder under emulation on all 103
-distinct GPC files (re-tools/gpc_verify.py).
+source/tools/gpc.py, which is bit-exact with AdvBIOS's decoder under emulation on every
+distinct GPC file of the game (re-tools/gpc_verify.py).
 
-1. decode: every distinct GPC file of the four PC-98 disks (by md5): size, position,
-   interleave, palette and every pixel.
-2. draw: INT F3h AH=01h semantics on a background pattern, the expected planes built from
+1. decode: every distinct picture of the game (by md5): size, position, interleave, palette and
+   every pixel.
+2. draw: INT F3h AH=01h semantics on the pictures the game's tests/cases.py GPC_DRAWS names, on
+   a background pattern, the expected planes built from
    gpc.py's pixels: the file's position or the caller's (byte column, line), opaque or colour
    0 transparent (per byte: the OR of the four plane bytes is the mask), rows 80 bytes apart
    from y * 80 + x (a row reaching past column 79 continues on the next line), nothing
    written outside the 32000 bytes of a plane.
 """
-import glob
 import hashlib
 import os
 import subprocess
@@ -20,6 +20,8 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+import gamedata  # noqa: E402
+import gamedir  # noqa: E402
 import gpc  # noqa: E402
 
 M64 = 0xFFFFFFFFFFFFFFFF
@@ -60,7 +62,7 @@ def draw_expected(w, h, x, y, pix, xb, yy, masked):
 def main():
     exe, original = sys.argv[1], sys.argv[2]
     files = {}
-    for f in sorted(glob.glob(os.path.join(original, 'pc98', '*', 'GPC', '*.GPC'))):
+    for f in gamedata.part_files(original, gamedir.get('PACK.pictures')):
         files.setdefault(hashlib.md5(open(f, 'rb').read()).hexdigest(), f)
     paths = list(files.values())
     out = subprocess.run([exe, 'decode'] + paths, capture_output=True, text=True,
@@ -80,9 +82,7 @@ def main():
         bad += 1
     # draw semantics on a few representative pictures
     by_name = {os.path.basename(p).upper(): p for p in paths}
-    cases = [('NV19.GPC', 65535, 0, 0), ('NV19.GPC', 65535, 0, 1), ('NVWIN.GPC', 65535, 0, 1),
-             ('NV28B.GPC', 3, 17, 1), ('NV32A.GPC', 65535, 0, 0), ('NV32A.GPC', 40, 10, 0),
-             ('CP.GPC', 65535, 0, 1), ('SAVE.GPC', 70, 390, 0), ('OPPAL.GPC', 65535, 0, 0)]
+    cases = gamedir.cases().GPC_DRAWS
     for name, xb, yy, masked in cases:
         path = by_name.get(name)
         if not path:

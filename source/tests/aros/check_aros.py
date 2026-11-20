@@ -36,6 +36,8 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', '..', 'lrvne', 'rigs'))
 from lrvrig import aros, frames                             # noqa: E402
+sys.path.insert(0, os.path.join(HERE, '..', '..', 'tools'))
+import gamedir                                              # noqa: E402
 
 PLAY_TICKS = 30000
 # random presses of return, up, down and esc every 20 ticks (menus, waits, the name entry),
@@ -79,7 +81,7 @@ def cmd_play(args, lang, preload):
                        prune=not args.keep)
         label = 'play %s' % lang
         problems = check(ref, run, label)
-        saves = run.work('saves', 'nova')
+        saves = run.work('saves', gamedir.load().PROFILE['id'])
         got = sorted(os.listdir(saves)) if os.path.isdir(saves) else []
         want = sorted(os.listdir(storage))
         if got != want:
@@ -114,8 +116,9 @@ def main():
     if 'present' in args.what:
         jobs.append(('present', cmd_present))
     if 'play' in args.what:
-        jobs.append(('play ja', lambda a: cmd_play(a, 'ja', 'yes')))
-        jobs.append(('play en', lambda a: cmd_play(a, 'en', 'no')))
+        # every language of the game; the pack preloaded for the first only
+        for i, lang in enumerate(gamedir.load().PACK['languages']):
+            jobs.append(('play ' + lang, lambda a, lang=lang, i=i: cmd_play(a, lang, 'no' if i else 'yes')))
     rc = 0
     try:
         for label, fn in jobs:

@@ -63,6 +63,26 @@ def rows_of(inv, part):
                   and p.startswith(prefix) and p.upper().endswith(suffix))
 
 
+def part_files(original, part):
+    """The files of a part of the description in the imported tree `original`, by the
+    inventory (those present)."""
+    inv = {(r.get('release'), r.name): r for r in load_inventory()}
+    files = (os.path.join(original, part['release'], p) for p in rows_of(inv, part))
+    return [f for f in files if os.path.exists(f)]
+
+
+def script_dirs(original, lang):
+    """Where a language's scripts are, in the order a script is looked for: the language's own,
+    then its fallback's."""
+    parts = gamedir.load().PACK['scripts']
+    dirs = []
+    while lang:
+        part = parts[lang]
+        dirs.append(os.path.join(original, part['release'], part.get('prefix', '').rstrip('/')))
+        lang = part.get('fallback')
+    return dirs
+
+
 def hooks():
     return inventory.Hooks(**gamedir.load().IMPORT)
 

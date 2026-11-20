@@ -6,12 +6,14 @@ md5s; tools/mkpack.py's rules).
 
 1. test_pack lists the languages and every entry (name, type, lang, size, FNV-1a 64): must
    equal xpak.read_pack().
-2. Lookups: a find with a language falls back to the neutral set only (mkpack completes the
-   English script set itself), so RUN.MES must be found in ja and en, NV01.GPC everywhere.
+2. Lookups: a find with a language falls back to the neutral set only (mkpack completes a
+   language's script set itself), for the names the game's tests/cases.py PACK_LOOKUPS gives
+   and the pack's own entries, in every language.
 3. Every GPC / USO / CLM / MES entry is byte-identical to an original file of that name in the
-   inventory (pictures: one of the disks' copies; NV43A: disk B's), and no file the inventory
+   inventory, of the release and kind the game's description packs (pictures: one of the
+   disks' copies; a picture with a rule: the disk the rule names), and no file the inventory
    marks "never packed" is in the pack.
-4. The profile names the game and its start script, and the pack has both languages.
+4. The profile is the game's, and its start script is in the pack.
 """
 import collections
 import hashlib
@@ -39,7 +41,8 @@ def main():
     exe, pak = sys.argv[1], sys.argv[2]
     pack = xpak.read_pack(open(pak, 'rb').read())
     ents = pack.entries
-    names = ['RUN.MES', 'NV01.GPC', 'NOVA.MES', 'profile', 'font16', 'NOSUCH']
+    desc = gamedir.load()
+    names = list(gamedir.cases().PACK_LOOKUPS) + ['profile', 'font16', 'NOSUCH']
     out = subprocess.run([exe, pak] + names, capture_output=True, text=True, check=True).stdout
     lines = out.splitlines()
     want = ['lang\t%d\t%s' % kv for kv in sorted(pack.langs.items())]
@@ -63,21 +66,22 @@ def main():
     by_md5 = collections.defaultdict(list)
     for r in inv:
         by_md5[r.md5].append(r)
-    kinds = {mkpack.T_GPC: 'image', mkpack.T_USO: 'music', mkpack.T_CLM: 'map hit table',
-             mkpack.T_MES: 'script'}
+    parts = {mkpack.T_GPC: [desc.PACK['pictures']], mkpack.T_USO: [desc.PACK['songs']],
+             mkpack.T_CLM: [desc.PACK['click_maps']], mkpack.T_MES: list(desc.PACK['scripts'].values())}
+    choice = {k.upper() + '.GPC': disk for k, disk in desc.PACK['pictures'].get('choice', {}).items()}
     checked = 0
     for e in ents:
-        if e.type not in kinds:
+        if e.type not in parts:
             continue
         rows = [r for r in by_md5.get(hashlib.md5(e.data).hexdigest(), [])
-                if r.basename.upper() == e.name and r.get('kind') == kinds[e.type]
-                and r.get('release') in ('pc98', 'en')]
+                if r.basename.upper() == e.name and any(
+                    r.get('kind') == p['kind'] and r.get('release') == p['release'] for p in parts[e.type])]
         if not rows:
             print('%s (type %d, lang %d) is not an original file of that name'
                   % (e.name, e.type, e.lang))
             bad += 1
-        if e.name == 'NV43A.GPC' and not any(r.name.startswith('B/') for r in rows):
-            print('NV43A.GPC is not disk B\'s file')
+        if e.name in choice and not any(r.name.startswith(choice[e.name] + '/') for r in rows):
+            print('%s is not disk %s\'s file' % (e.name, choice[e.name]))
             bad += 1
         checked += 1
     never = {r.md5 for r in inv if 'never packed' in r.get('kind')}
@@ -93,8 +97,9 @@ def main():
     if not pack.find(prof['start'].split('\\')[-1], mkpack.T_MES, lang=prof['lang']):
         print('the start script %s is not in the pack' % prof['start'])
         bad += 1
-    if sorted(pack.langs.values()) != ['en', 'ja']:
-        print('languages %r, expected ja and en' % pack.langs)
+    langs = desc.PACK['languages']
+    if langs[0] not in pack.langs.values() or not set(pack.langs.values()) <= set(langs):
+        print('languages %r: expected %s and some of %s' % (pack.langs, langs[0], ', '.join(langs[1:])))
         bad += 1
     print('check_pack: %d entries, %d game files checked, %d lookups: %s'
           % (len(ents), checked, len(got_find), 'OK' if not bad else '%d FAILED' % bad))

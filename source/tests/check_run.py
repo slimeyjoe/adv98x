@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-"""check_run.py ADV98X PAK ORIGINAL [--lang ja|en] [--frames N]: play the game headless from
-RUN.MES (null backend, control mode), answering every wait for input with Return, and check the
+"""check_run.py ADV98X PAK ORIGINAL [--lang LANG] [--frames N]: play the game headless from its
+start script (null backend, control mode), answering every wait for input with Return, and check the
 interpreter's control flow against source/tools/mes.py's parse of the scripts:
 
 * every opcode executed in a script (trace "op", script offset = pos - 9000h) starts an opcode
@@ -10,7 +10,8 @@ interpreter's control flow against source/tools/mes.py's parse of the scripts:
   separately;
 * every script entered after the first is a mes-jump target of the script before it;
 * every picture shown (trace "picture") is named by an image-file of the current script;
-* no "error" event, and the run reaches at least the scripts given in EXPECT for the language.
+* no "error" event, and the run reaches at least the scripts the game's tests/cases.py
+  RUN_EXPECT names.
 """
 import argparse
 import json
@@ -21,10 +22,11 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.join(HERE, '..', 'tools'))
+import gamedata  # noqa: E402
+import gamedir  # noqa: E402
 import mes  # noqa: E402
 
-# RUN -> MODE (title) -> "start from the beginning" -> NVOP (opening) -> its successors
-EXPECT = ['RUN', 'MODE', 'NVOP']
+EXPECT = gamedir.cases().RUN_EXPECT
 
 
 def base(name):
@@ -33,8 +35,7 @@ def base(name):
 
 class Scripts:
     def __init__(self, original, lang):
-        self.dirs = ([os.path.join(original, 'en', 'MES')] if lang == 'en' else []) + \
-                    [os.path.join(original, 'pc98', 'A', 'MES')]
+        self.dirs = gamedata.script_dirs(original, lang)
         self.cache = {}
 
     def get(self, name):

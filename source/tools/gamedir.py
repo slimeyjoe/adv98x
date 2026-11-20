@@ -15,7 +15,9 @@ so that a research tool run by hand in a game's tree finds it.
 
 usage (python3 -I tools/gamedir.py ...):
   dir           print the game's directory; exit status 1 without one
-  get NAME      print a value of the description, e.g. `get PACK.name`
+  get NAME      print a value of the description, e.g. `get PACK.name` (a list: its items,
+                separated by spaces)
+  case NAME     print a value of the game's test cases, e.g. `case SMOKE_SONG`
 """
 import importlib.util
 import os
@@ -69,8 +71,12 @@ def load(game=None):
 
 
 def cases(game=None):
-    """The game's test cases (tests/cases.py) as a module."""
+    """The game's test cases (tests/cases.py) as a module. They are written with the engine's
+    source/tests/casekit.py, which this puts on the path."""
     game = game or require()
+    tests = os.path.join(ENGINE, 'source', 'tests')
+    if tests not in sys.path:
+        sys.path.insert(0, tests)
     return _load(os.path.join(game, 'tests', 'cases.py'), 'cases')
 
 
@@ -104,9 +110,9 @@ def build(game=None, *parts):
     return os.path.join(game or require(), 'build', *parts)
 
 
-def get(name, game=None):
+def get(name, game=None, module=None):
     """A value of the description by dotted name: 'PACK.name', 'ORIGINAL.interpreter.path'."""
-    obj = load(game)
+    obj = module or load(game)
     for i, part in enumerate(name.split('.')):
         obj = getattr(obj, part) if i == 0 else obj[part]
     return obj
@@ -119,8 +125,9 @@ def main(argv):
             return 1
         print(d)
         return 0
-    if len(argv) == 2 and argv[0] == 'get':
-        print(get(argv[1]))
+    if len(argv) == 2 and argv[0] in ('get', 'case'):
+        v = get(argv[1], module=cases() if argv[0] == 'case' else None)
+        print(' '.join(map(str, v)) if isinstance(v, (list, tuple)) else v)
         return 0
     sys.exit('usage' + __doc__.split('usage', 1)[1].rstrip())
 
