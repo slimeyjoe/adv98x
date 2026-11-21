@@ -36,7 +36,9 @@ export GAME_DIR
 NEED_GAME  = @test -n "$(GAME_DIR)" || { echo "$@: no game: run make in a game's directory, or set GAME_DIR"; exit 1; }
 # Everything built goes to the game's build/ (without a game, the engine's ../build):
 # build/<TARGET>/ for each target, the pack and its intermediates (fonts) in build/ itself.
-BUILDROOT := $(if $(GAME_DIR),$(GAME_DIR)/build,../build)
+# Always an absolute path: the objects' dependency files name their targets as the build did, so
+# one name for each, whether a game's make or this directory's runs the build.
+BUILDROOT := $(abspath $(if $(GAME_DIR),$(GAME_DIR)/build,../build))
 BUILD     := $(BUILDROOT)/$(TARGET)
 APP_NAME  := adv98x
 APP_SRCS  := $(sort $(wildcard engine/*.c engine/*/*.c))
