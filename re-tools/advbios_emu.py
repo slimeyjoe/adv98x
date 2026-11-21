@@ -16,7 +16,12 @@ What is real and what is modelled:
     work from the initialised DGROUP (defaults: window 0,0-79,399, colour 15, skippable delay;
     docs/re/advbios.md §5.2). A call enters the interrupt handler itself (IntF1 0000:01A8,
     IntF3 0290:002A, IntF6 0000:0902) with an IRET frame that returns to a sentinel.
-  * Graphics VRAM (A800, B000, B800, E000: planes 0..3) is MMIO with the GRCG modelled: port
+  * Graphics VRAM (A800, B000, B800, E000: planes 0..3) with the GRCG modelled. While the GRCG
+    is off (port 7Ch bit 7 clear) a write is a plain write, and the planes are plain memory of
+    the emulator; turning it on maps them as MMIO, which applies the GRCG's rules below, and
+    turning it off maps them back (the contents carried over). The GRCG is switched a few
+    hundred times in a run, a plane is written millions of times: so only the writes the GRCG
+    changes cost a call into Python. Port
     7Ch mode (bit 7 on, bit 6 RMW vs TDW, bits 0..3 plane disable), port 7Eh the four tile
     registers in turn. RMW write: plane = (plane & ~data) | (tile & data); TDW: plane = tile.
     Reads without the GRCG return the plane byte. Text VRAM (A000/A200) is plain memory.
@@ -81,16 +86,15 @@ class AdvBiosEmu:
         self.grcg_mode = 0
         self.tile = [0, 0, 0, 0]
         self.tile_i = 0
-        self.vram = [bytearray(0x8000) for _ in range(4)]
+        self.vram = [bytearray(0x8000) for _ in range(4)]     # the planes, while MMIO
+        self._mmio = False
+        self._grcg_planes = [0, 1, 2, 3]
         self.ports = []
         self.dac = [[0, 0, 0] for _ in range(16)]    # colour -> [r, g, b] as programmed
         self.dac_index = 0
         self.uc = uc = unicorn.Uc(unicorn.UC_ARCH_X86, unicorn.UC_MODE_16)
         uc.mem_map(0, 0xA8000)
-        for base, size in ((0xA8000, 0x18000), (0xE0000, 0x8000)):
-            uc.mmio_map(base, size,
-                        lambda u, off, sz, ud, b=base: self._vram_read(b + off, sz), None,
-                        lambda u, off, sz, v, ud, b=base: self._vram_write(b + off, sz, v), None)
+        self._map_vram(False)
         uc.mem_map(0xC0000, 0x20000)
         uc.mem_map(0xE8000, 0x28000)
         uc.mem_write(SENT * 16, b'\xF4' * 16)
@@ -127,35 +131,61 @@ class AdvBiosEmu:
         return struct.unpack('<H', self.ds_bytes(off, 2))[0]
 
     # ---------------- hardware ----------------
+    VRAM_BLOCKS = ((0xA8000, 0x18000), (0xE0000, 0x8000))   # planes 0..2, plane 3
+
+    def _map_vram(self, mmio):
+        """the planes as plain memory (the GRCG off) or as MMIO (on), the contents kept"""
+        uc = self.uc
+        if mmio == self._mmio and hasattr(self, '_vram_mapped'):
+            return
+        if getattr(self, '_vram_mapped', False):
+            if not self._mmio:                     # plain memory -> the model's planes
+                for p, b in enumerate(PLANE_LIN):
+                    self.vram[p][:] = uc.mem_read(b, 0x8000)
+            for base, size in self.VRAM_BLOCKS:
+                uc.mem_unmap(base, size)
+        for base, size in self.VRAM_BLOCKS:
+            if mmio:
+                uc.mmio_map(base, size,
+                            lambda u, off, sz, ud, b=base: self._vram_read(b + off, sz), None,
+                            lambda u, off, sz, v, ud, b=base: self._vram_write(b + off, sz, v), None)
+            else:
+                uc.mem_map(base, size)
+        if not mmio:
+            for p, b in enumerate(PLANE_LIN):
+                uc.mem_write(b, bytes(self.vram[p]))
+        self._mmio = mmio
+        self._vram_mapped = True
+
+    @staticmethod
+    def _split(lin):
+        """plane and offset of an address of the mapped blocks (A8000-BFFFF, E0000-E7FFF)"""
+        if lin >= 0xE0000:
+            return 3, lin - 0xE0000
+        return (lin - 0xA8000) >> 15, (lin - 0xA8000) & 0x7FFF
+
     def _vram_read(self, lin, size):
         v = 0
         for i in range(size):
             p, o = self._split(lin + i)
-            v |= (self.vram[p][o] if p is not None else 0) << (8 * i)
+            v |= self.vram[p][o] << (8 * i)
         return v
 
     def _vram_write(self, lin, size, value):
+        """a write while the GRCG is on (the planes are MMIO only then): every plane it does not
+        disable takes the tile (TDW) or the tile where the data has ones (RMW)"""
+        vram, tile, planes = self.vram, self.tile, self._grcg_planes
+        rmw = self.grcg_mode & 0x40
         for i in range(size):
-            p, o = self._split(lin + i)
-            if p is None:
-                continue
+            o = self._split(lin + i)[1]
             b = (value >> (8 * i)) & 0xFF
-            if self.grcg_mode & 0x80:
-                for q in range(4):
-                    if self.grcg_mode & (1 << q):
-                        continue
-                    if self.grcg_mode & 0x40:          # RMW
-                        self.vram[q][o] = (self.vram[q][o] & ~b & 0xFF) | (self.tile[q] & b)
-                    else:                              # TDW
-                        self.vram[q][o] = self.tile[q]
+            if rmw:
+                keep = ~b & 0xFF
+                for q in planes:
+                    vram[q][o] = (vram[q][o] & keep) | (tile[q] & b)
             else:
-                self.vram[p][o] = b
-
-    def _split(self, lin):
-        for p, b in enumerate(PLANE_LIN):
-            if b <= lin < b + 0x8000:
-                return p, lin - b
-        return None, 0
+                for q in planes:
+                    vram[q][o] = tile[q]
 
     def _in(self, uc, port, size, ud):
         if port in (0x60, 0xA0):             # GDC status: bit 5 VSYNC, toggling
@@ -168,6 +198,8 @@ class AdvBiosEmu:
         if port == 0x7C:
             self.grcg_mode = value & 0xFF
             self.tile_i = 0
+            self._grcg_planes = [q for q in range(4) if not self.grcg_mode & (1 << q)]
+            self._map_vram(bool(self.grcg_mode & 0x80))
         elif port == 0x7E:
             self.tile[self.tile_i & 3] = value & 0xFF
             self.tile_i += 1
@@ -253,11 +285,16 @@ class AdvBiosEmu:
         return {n: uc.reg_read(i) for n, i in zip(names, ids)}
 
     def planes(self):
-        return [bytes(p[:32000]) for p in self.vram]
+        if self._mmio:
+            return [bytes(p[:32000]) for p in self.vram]
+        return [bytes(self.uc.mem_read(b, 32000)) for b in PLANE_LIN]
 
     def set_planes(self, planes):
         for p in range(4):
-            self.vram[p][:32000] = planes[p][:32000]
+            if self._mmio:
+                self.vram[p][:32000] = planes[p][:32000]
+            else:
+                self.uc.mem_write(PLANE_LIN[p], bytes(planes[p][:32000]))
 
 
 def _selftest():
