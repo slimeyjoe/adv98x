@@ -108,6 +108,11 @@ print("render --volume 30: %d samples, %d not scaled by %d/256" % (len(b), bad, 
     else
         echo "teardown: exit $t, not 3"; cat "$BIN/teardown/log"; rc=1
     fi
+    # the game's pack-building kit, unpacked elsewhere: the same pack from the player's files
+    KIT=$(mktemp -d)/kit.zip
+    $PY -I "$HERE/../tools/mkkit.py" -o "$KIT" --name kit >/dev/null &&
+        run "$HERE/check_kit.sh" "$KIT" "$ORIGINAL" "$PAK" || rc=1
+    rm -rf "$(dirname "$KIT")"
     # the SDL3 backend's presentation, offscreen (when it is built: make TARGET=sdl3)
     SDL3=${SDL3_EXE:-$BUILDROOT/sdl3/adv98x}
     if [ -x "$SDL3" ]; then

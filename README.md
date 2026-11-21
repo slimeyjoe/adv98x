@@ -82,6 +82,8 @@ make TARGET=amiga dist   # build/amiga/adv98x-<version>-amiga.lha (warpos, aros 
                          # drawer Adv98X with the program, its ReadMe and the licence
 make dist-src            # build/<name>-<version>-src.tar.gz: the committed tree with every
                          # submodule's
+make kit                 # (from a game) build/<name>-<version>-kit.zip: the game's
+                         # pack-building kit, for players without a compiler: Python 3 only
 ```
 
 The version is `source/engine/version.h`. The player's ReadMe is `source/dist/ReadMe.txt`, the

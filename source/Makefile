@@ -14,6 +14,7 @@
 #   make TARGET=sdl3 dist          the player's archive build/sdl3/adv98x-<version>-<host>.tar.gz
 #   make TARGET=amiga|warpos|aros dist   the Amiga family's build/<target>/adv98x-<version>-<target>.lha
 #   make dist-src                  the source archive build/<name>-<version>-src.tar.gz
+#   make kit                       a game's pack-building kit build/<name>-<version>-kit.zip
 #   make clean                     remove the build directory
 #   make data-clean                remove everything made from the game outside build/
 #   make distclean                 clean + data-clean: only the committed files are left
@@ -161,8 +162,8 @@ distclean: clean data-clean
 
 # ---------------------------------------------------------------------------------------------
 # The pack: fonts (lrvne's xfont from the X11 bitmap fonts it carries) and everything the engine
-# needs from the original game (tools/mkpack.py, on lrvne's pack writer). The same for every
-# target. The game names it (game.py PACK.name); a backend takes <program>.pak, else the only
+# needs from the original game (tools/mkpack.py, on lrvne's pack writer), by tools/makepak.py.
+# The same for every target. The game names it (game.py PACK.name); a backend takes <program>.pak, else the only
 # .pak next to the program.
 # ---------------------------------------------------------------------------------------------
 X11FONTS ?= $(LRVNE)/fonts/x11
@@ -171,11 +172,7 @@ PAK      ?= $(BUILDROOT)/$(if $(GAME_DIR),$(shell $(LRVNE_PY) tools/gamedir.py g
 .PHONY: pack
 pack:
 	$(NEED_GAME)
-	$(Q)mkdir -p $(BUILDROOT)/fonts
-	$(Q)$(LRVNE_TOOL) xfont --no-bold -o $(BUILDROOT)/fonts/ank8.xfnt $(X11FONTS)/8x16rk.bdf >/dev/null
-	$(Q)$(LRVNE_TOOL) xfont --no-bold -o $(BUILDROOT)/fonts/k16.xfnt $(X11FONTS)/jiskan16.bdf >/dev/null
-	$(Q)$(LRVNE_PY) tools/mkpack.py --original $(ORIGINAL) --fonts $(BUILDROOT)/fonts \
-	    -o $(PAK)
+	$(Q)$(LRVNE_PY) tools/makepak.py --original $(ORIGINAL) --x11fonts $(X11FONTS) -o $(PAK)
 
 # ---------------------------------------------------------------------------------------------
 # Release archives. The version is engine/version.h's (the release is tagged v<version>).
@@ -205,7 +202,13 @@ SRCDIST     := $(abspath $(BUILDROOT))/$(SRC_NAME)-src.tar.gz
 SRCDIST_TMP := $(abspath $(BUILDROOT))/dist-src
 # no local user or group names in the archive (GNU tar / bsdtar spell it differently)
 TAR_ANON    := $(if $(shell tar --version 2>/dev/null | grep GNU),--owner=0 --group=0 --numeric-owner,--uid 0 --gid 0 --uname '' --gname '')
-.PHONY: dist dist-src
+.PHONY: dist dist-src kit
+# the game's pack-building kit (tools/mkkit.py): the pack built with Python alone, from the
+# player's copy; tests/check_kit.sh builds the pack with it (make test)
+KIT := $(abspath $(BUILDROOT))/$(DIST_BASE)-kit.zip
+kit:
+	$(NEED_GAME)
+	$(Q)$(LRVNE_PY) tools/mkkit.py -o $(KIT)
 ifneq ($(AMIGA_FAMILY),)
 # the Amiga family's .lha (lrvne's lrvne-dist; AMIGA_DIST above); the ReadMe's title with the version
 dist: lrvne-dist

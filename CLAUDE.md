@@ -40,6 +40,8 @@ files are the examples throughout.
 - `source/tools/` (stdlib only, on `lrvne/tools`): `gamedir.py` (the engine's and the game's
   roots), `gamedata.py` (import/check/derive: lrvne's inventory framework with the game's
   hooks, `game.py` IMPORT), `mkpack.py` (the pack from `game.py` PACK, ORIGINAL, PROFILE),
+  `makepak.py` (import, fonts, pack: what `make pack` runs, and the kit's tool), `mkkit.py`
+  (a game's pack-building kit; `tests/check_kit.sh` builds the pack with it in `make test`),
   `mes.py` (script parser), `gpc.py` (picture decoder).
 - Build: in a game's directory `make pack && make TARGET=sdl3`; tests: `make test` there. Alone
   (`cd source`), the engine builds and runs the tests that need no game.
