@@ -179,7 +179,8 @@ pack:
 
 # ---------------------------------------------------------------------------------------------
 # Release archives. The version is engine/version.h's (the release is tagged v<version>).
-# `make TARGET=sdl3 dist`: $(BUILD)/adv98x-<version>-<DIST_NAME>.tar.gz, which unpacks to
+# `make TARGET=sdl3 dist`: $(BUILD)/adv98x-<version>-<DIST_NAME>.tar.gz (a game's: named by its
+# GAME_DIST; the Amiga family's .lha are named by lrvne after the program), which unpacks to
 # Adv98X/{adv98x, ReadMe.txt, LICENSE, LICENSE.ymfm}: the stripped executable, the player's
 # ReadMe (dist/ReadMe.txt, or the game's, @VERSION@ replaced) and the licences of what is in the executable.
 # The pack is not in it: it is the game's data, which the player builds from their own copy
@@ -193,10 +194,13 @@ pack:
 # ---------------------------------------------------------------------------------------------
 DIST_README ?= $(call GAME_PART,ReadMe.txt)
 DIST_STRIP  ?= strip
-DIST        := $(BUILD)/adv98x-$(AX_VERSION)-$(LRVNE_DIST_NAME).tar.gz
+# a game's make names its archives (GAME_DIST: name-version); without a game, the engine's
+GAME_DIST   ?=
+DIST_BASE   := $(or $(GAME_DIST),adv98x-$(AX_VERSION))
+DIST        := $(BUILD)/$(DIST_BASE)-$(LRVNE_DIST_NAME).tar.gz
 DISTDIR     := $(BUILD)/dist
 SRC_TOP     := $(if $(GAME_DIR),$(GAME_DIR),$(abspath ..))
-SRC_NAME    ?= adv98x-$(AX_VERSION)
+SRC_NAME    ?= $(DIST_BASE)
 SRCDIST     := $(abspath $(BUILDROOT))/$(SRC_NAME)-src.tar.gz
 SRCDIST_TMP := $(abspath $(BUILDROOT))/dist-src
 # no local user or group names in the archive (GNU tar / bsdtar spell it differently)
