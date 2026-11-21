@@ -5,7 +5,7 @@
 #ifndef AX_VERSION_H
 #define AX_VERSION_H
 
-#define AX_VERSION      "0.1.0"
-#define AX_VERSION_DATE "15.11.2026"
+#define AX_VERSION      "0.2.0"
+#define AX_VERSION_DATE "21.11.2026"
 
 #endif
