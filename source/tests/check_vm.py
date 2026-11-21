@@ -30,7 +30,8 @@ recorded as keys and clicks; both sides then replay it from the start script unt
 writes the route's unlock file (an ending may loop for ever after it), where the state is
 compared as above. The route must pass through the script the route names.
 
-Scenarios run in parallel (CHECK_VM_JOBS, default: the number of CPUs).
+Scenarios run in parallel (CHECK_VM_JOBS, default: the number of CPUs). The original's results
+are kept between runs (refs.py: lrvne's refcache; REFCACHE=off|refresh|verify).
 CHECK_VM_OUT=DIR writes both screens of a failing scenario there as PNG.
 
 Input is the PC-98 keyboard: a key is accepted only while the game waits for one. The dumped
@@ -66,6 +67,15 @@ def save_file(original, name):
 
 
 def run_reference(original, fonts, lang, saves, keys, script=None, stop=None):
+    """the original's run of a scenario, or its stored result (refs.py)"""
+    import refs
+    args = {'lang': lang, 'saves': list(saves), 'keys': list(keys),
+            'script': script.hex() if script else None, 'stop': stop}
+    return refs.get('vm', args, lambda: compute_reference(original, fonts, lang, saves, keys,
+                                                          script, stop), fonts=fonts)[0]
+
+
+def compute_reference(original, fonts, lang, saves, keys, script=None, stop=None):
     import nvovl_emu
     if RESET in keys:                           # the machine started again: what follows
         keys = keys[len(keys) - keys[::-1].index(RESET):]

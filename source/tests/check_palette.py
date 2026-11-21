@@ -16,6 +16,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.path.join(ROOT, 're-tools'))
+sys.path.insert(0, HERE)                          # refs.py
 
 
 def scenario():
@@ -75,7 +76,9 @@ def main():
         print('check_palette: skipped (no unicorn in this Python)')
         return 0
     lines = scenario()
-    ref, got = run_emu(lines), run_engine(sys.argv[1], lines)
+    import refs
+    ref = refs.get('palette', {'lines': list(lines)}, lambda: run_emu(lines))[0]
+    got = run_engine(sys.argv[1], lines)
     bad = 0
     for g, r in zip(got, ref):
         if g[1:] != r[1:]:

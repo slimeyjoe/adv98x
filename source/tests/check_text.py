@@ -20,6 +20,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
 sys.path.insert(0, os.path.join(ROOT, 're-tools'))
+sys.path.insert(0, HERE)                          # refs.py
 
 
 def sj(text):
@@ -154,7 +155,9 @@ def main():
         print('check_text: skipped (no unicorn in this Python)')
         return 0
     lines = scenario()
-    ref = run_emu(lines, fontdir)
+    import refs
+    ref = refs.get('text', {'lines': list(lines)}, lambda: run_emu(lines, fontdir),
+                   fonts=fontdir)[0]
     got = run_engine(exe, pak, lines)
     bad = 0
     for (n1, x1, y1, p1), (n2, x2, y2, p2) in zip(got, ref):
